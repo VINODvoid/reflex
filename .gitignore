@@ -1,0 +1,37 @@
+# ── Environment ──────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Go ───────────────────────────────────────────────────────
+services/monitor/bin/
+services/monitor/*.exe
+services/monitor/*.test
+services/monitor/vendor/
+
+# ── Node / Bun ───────────────────────────────────────────────
+node_modules/
+apps/mobile/node_modules/
+
+# ── Expo / React Native ──────────────────────────────────────
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+apps/mobile/android/
+apps/mobile/ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ───────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
