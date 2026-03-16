@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflex/services/monitor/internal/api"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,6 +41,11 @@ func main() {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+	h := api.NewHandler(db)
+	router.Post("/wallets", h.CreateWallet)
+	router.Post("/users", h.RegisterUser)
+	router.Get("/wallets/{userId}", h.GetWallets)
+
 	log.Printf("Server is running on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, router))
 }

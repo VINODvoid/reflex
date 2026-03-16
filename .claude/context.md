@@ -1,8 +1,8 @@
 # REFLEX — Current Build Context
 
-## Status: Phase 1 — Foundation (not started)
+## Status: Phase 2 — Wallet Input (in progress)
 
-Active phase: **Phase 1**
+Active phase: **Phase 2**
 Last updated: 2026-03-15
 
 ---
@@ -13,21 +13,22 @@ Last updated: 2026-03-15
 Get a running skeleton: Go server connects to postgres, Expo app boots with nav shell and empty store.
 
 ### Checklist
-- [ ] Monorepo root: `package.json` (workspaces), `.gitignore`
-- [ ] Go backend: `services/monitor/go.mod`, `cmd/server/main.go`, `Makefile`
-- [ ] DB migrations: `001_init.sql` (full schema)
-- [ ] Docker Compose: postgres for local dev
-- [ ] Expo app: `apps/mobile/package.json`, Expo Router layout
-- [ ] Zustand store shape: `apps/mobile/store/index.ts`
-- [ ] API client stub: `apps/mobile/services/api.ts`
+- [x] Monorepo root: `.gitignore`
+- [x] Go backend: `services/monitor/go.mod`, `cmd/server/main.go`, `Makefile`
+- [x] DB migrations: `001_init.sql` (full schema)
+- [x] Docker Compose: postgres for local dev
+- [x] Expo app: `apps/mobile/package.json`, Expo Router layout
+- [x] Zustand store shape: `apps/mobile/store/index.ts`
+- [x] API client stub: `apps/mobile/services/api.ts`
 - [ ] Push token registration: `apps/mobile/services/notifications.ts`
-- [ ] Go health check: `GET /health` returns `{"status":"ok"}`
+- [x] Go health check: `GET /health` returns `{"status":"ok"}`
 
-### Done When
-- `make dev` in `services/monitor` starts server with no errors
-- `GET http://localhost:8080/health` returns 200
-- `npx expo start` in `apps/mobile` boots without errors
-- Tabs visible: Dashboard, Alerts, Settings (all empty)
+### Done
+- `make dev` starts server, connects to DB, no errors
+- `GET http://localhost:8080/health` returns `{"status":"ok"}`
+- `bunx expo start` boots with three tabs: Dashboard, Alerts, Settings
+- Zustand store typed with Wallet, Position, AlertRule
+- DB schema migrated to local postgres via Docker
 
 ---
 
