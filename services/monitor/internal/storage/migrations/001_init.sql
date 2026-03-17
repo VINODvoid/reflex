@@ -1,14 +1,14 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Users (anonymous, identified by push token)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   expo_push_token TEXT NOT NULL UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Wallets linked to a user
-CREATE TABLE wallets (
+CREATE TABLE IF NOT EXISTS wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   address TEXT NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE wallets (
 );
 
 -- Alert rules
-CREATE TABLE alert_rules (
+CREATE TABLE IF NOT EXISTS alert_rules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   wallet_id UUID REFERENCES wallets(id) ON DELETE CASCADE,
@@ -35,7 +35,7 @@ CREATE TABLE alert_rules (
 );
 
 -- Alert history
-CREATE TABLE alert_events (
+CREATE TABLE IF NOT EXISTS alert_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   rule_id UUID REFERENCES alert_rules(id),
   user_id UUID REFERENCES users(id),
