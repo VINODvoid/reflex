@@ -52,6 +52,7 @@ func (h *Handler) CreateWallet(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{
 		"id":          id,
+		"userId":      req.UserId,
 		"address":     req.Address,
 		"chainFamily": req.ChainFamily,
 		"label":       req.Label,
