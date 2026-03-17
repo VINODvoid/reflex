@@ -1,4 +1,4 @@
-import { Wallet } from "../store/types";
+import { Position, Wallet } from "../store/types";
 
 interface HealthInterface {
   status: string;
@@ -44,4 +44,13 @@ export async function getWallets(userId: string): Promise<Wallet[]> {
   if (!res.ok) throw new Error("failed to fetch wallets");
   const data = await res.json();
   return data.wallets;
+}
+
+export async function getPositions(walletId: string): Promise<Position[]> {
+  const res = await fetch(
+    `${process.env.EXPO_PUBLIC_API_URL}/positions/${walletId}`,
+  );
+  if (!res.ok) throw new Error("failed to fetch positions");
+  const data = await res.json();
+  return data.positions;
 }

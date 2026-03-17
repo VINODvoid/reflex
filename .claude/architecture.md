@@ -54,34 +54,32 @@ All handlers receive dependencies via a `Handler` struct. No globals.
 ### Protocol Clients
 
 #### Aave V3 (`internal/protocols/aave/`)
-- Target contract: `UiPoolDataProvider` (different address per chain, see below)
-- Method: `getUserReservesData(poolAddressProvider, user)`
-- Health factor computed from response: `totalCollateralBase * avgLiquidationThreshold / totalDebtBase`
-- HF is returned in 18-decimal fixed point — divide by 1e18
-
-**Contract addresses:**
-| Chain | UiPoolDataProvider | PoolAddressesProvider |
-|-------|-------------------|----------------------|
-| Ethereum (1) | `0x91c0eA31b49B69Ea18607702c5d9aC360bf3dE7d` | `0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e` |
-| Base (8453) | `0x174446a6741300cD2E7C1b1A636Fee99c8F83F9b` | `0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64b` |
-| Arbitrum (42161) | `0x5c5228aC8BC1528482514aF3e27E692495148717` | `0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb` |
-| Polygon (137) | `0xC69728f11E9E6127733751c8410432913123acf1` | `0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb` |
-| Optimism (10) | `0xbd83DdBE37fc91923d59C8c1E0bDe0CccCa332d5` | `0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb` |
+- Target contract: `Pool` (per chain)
+- Method: `getUserAccountData(user)` — returns healthFactor directly as uint256 in 1e18
+- Pool addresses: Ethereum `0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2`, Base `0xA238Dd80C259a72e81d7e4664a9801593F98d1c5`, Arbitrum `0x794a61358D6845594F94dc1DB02A252b5b4814aD`
+- ABI: minimal fragment in `internal/protocols/aave/abi/Pool.json`
 
 #### Compound V3 (`internal/protocols/compound/`)
 - Target: Comet contract per market
-- Calls: `getBorrowableOf(account)` and `borrowBalanceOf(account)` and `collateralBalanceOf(account, asset)`
-- Health factor proxy = sum(collateral_value × liquidation_factor) / borrow_balance
+- Calls: `borrowBalanceOf`, `collateralBalanceOf`, `getAssetInfo`, `numAssets`
+- Health factor = sum(collateral × liquidateCollateralFactor × price) / debtUSD
+- Markets: Ethereum USDC `0xc3d688B66703497DAA19211EEdff47f25384cdc3`, Base USDC `0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf`
+- Token → CoinGecko ID map in `internal/protocols/compound/assets.go`
 
 #### MarginFi (`internal/protocols/marginfi/`)
-- Program ID: `MFv2hWf31Z9kbCa1snEPdcgp7nZFuubnBXf8Ygy3cK` (mainnet)
-- Fetch MarginfiAccount program accounts filtered by authority (user pubkey)
-- Decode via Borsh: extract `lending_pool_balances` to compute weighted health
+- Program ID: `MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA` (mainnet)
+- Filter: `GetProgramAccounts` with memcmp at offset 40 (authority field)
+- Decode: Borsh via `gagliardetto/binary`, skip 8-byte Anchor discriminator
+- I80F48 fixed-point: 16-byte little-endian i128, divide by 2^48
+- Bank accounts batch-fetched via `GetMultipleAccounts`
+- ⚠️ Bank struct byte offsets need verification against MarginFi V2 IDL
 
 #### Solend (`internal/protocols/solend/`)
 - Program ID: `So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo`
-- Fetch `Obligation` accounts filtered by owner
-- Parse `depositedValue`, `borrowedValue`, `allowedBorrowValue` → health = allowedBorrowValue / borrowedValue
+- Filter: `GetProgramAccounts` with memcmp at offset 42 (owner field)
+- Custom binary layout (not Anchor) — Decimal = u128 scaled to 1e18
+- Health factor = `allowedBorrowValue / borrowedValue` (pre-computed USD in obligation)
+- ⚠️ Owner offset 42 needs verification against Solend program source
 
 ### Alert Evaluator (`internal/alerts/evaluator.go`)
 ```go
