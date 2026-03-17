@@ -6,12 +6,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
 	"reflex/services/monitor/internal/api"
+	"reflex/services/monitor/internal/monitor"
+	"reflex/services/monitor/internal/notifications"
 	"reflex/services/monitor/internal/prices"
 	"reflex/services/monitor/internal/protocols/aave"
 	"reflex/services/monitor/internal/protocols/compound"
@@ -55,6 +60,21 @@ func main() {
 	compoundClient := compound.NewClient(evmRPCURLs, priceClient)
 	marginfiClient := marginfi.NewClient(heliusURL, priceClient)
 	solendClient := solend.NewClient(heliusURL)
+	pushClient := notifications.NewPushClient()
+
+	// Background monitor engine — polls wallets with active alert rules every 60s.
+	engine := monitor.NewEngine(
+		db,
+		aaveClient, compoundClient,
+		marginfiClient, solendClient,
+		pushClient,
+		60*time.Second,
+	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go engine.Start(ctx)
 
 	router := chi.NewRouter()
 
@@ -72,6 +92,24 @@ func main() {
 	ph := api.NewPositionsHandler(db, aaveClient, compoundClient, marginfiClient, solendClient)
 	router.Get("/positions/{walletId}", ph.GetPositions)
 
-	log.Printf("server listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	ah := api.NewAlertsHandler(db)
+	router.Post("/alerts", ah.CreateAlert)
+	router.Get("/alerts/{userId}/history", ah.GetAlertHistory) // must be before /{userId}
+	router.Get("/alerts/{userId}", ah.GetAlerts)
+	router.Delete("/alerts/{alertId}", ah.DeleteAlert)
+
+	srv := &http.Server{Addr: ":" + port, Handler: router}
+
+	go func() {
+		log.Printf("server listening on :%s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("shutting down")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	srv.Shutdown(shutdownCtx)
 }

@@ -8,13 +8,21 @@ export interface Wallet {
 }
 
 export interface Position {
-  id: string;
   walletId: string;
   protocol: "aave_v3" | "compound_v3" | "marginfi" | "solend";
   chainId: number;
   healthFactor: number;
   collateralUsd: number;
   debtUsd: number;
+}
+
+export interface AlertEvent {
+  id: string;
+  ruleId: string;
+  userId: string;
+  message: string;
+  valueAtTrigger: number;
+  sentAt: string;
 }
 
 export interface AlertRule {
