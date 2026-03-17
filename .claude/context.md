@@ -1,61 +1,64 @@
 # REFLEX — Current Build Context
 
-## Status: Phase 2 — Wallet Input (in progress)
+## Status: Phase 3 — Position Data (complete)
 
-Active phase: **Phase 2**
-Last updated: 2026-03-15
-
----
-
-## Active Phase: 1 — Foundation
-
-### Goal
-Get a running skeleton: Go server connects to postgres, Expo app boots with nav shell and empty store.
-
-### Checklist
-- [x] Monorepo root: `.gitignore`
-- [x] Go backend: `services/monitor/go.mod`, `cmd/server/main.go`, `Makefile`
-- [x] DB migrations: `001_init.sql` (full schema)
-- [x] Docker Compose: postgres for local dev
-- [x] Expo app: `apps/mobile/package.json`, Expo Router layout
-- [x] Zustand store shape: `apps/mobile/store/index.ts`
-- [x] API client stub: `apps/mobile/services/api.ts`
-- [ ] Push token registration: `apps/mobile/services/notifications.ts`
-- [x] Go health check: `GET /health` returns `{"status":"ok"}`
-
-### Done
-- `make dev` starts server, connects to DB, no errors
-- `GET http://localhost:8080/health` returns `{"status":"ok"}`
-- `bunx expo start` boots with three tabs: Dashboard, Alerts, Settings
-- Zustand store typed with Wallet, Position, AlertRule
-- DB schema migrated to local postgres via Docker
+Active phase: **Phase 4**
+Last updated: 2026-03-17
 
 ---
 
-## Phase 2 — Wallet Input (not started)
+## Phase 1 — Foundation (complete)
 
-- Paste-address flow (EVM + Solana)
-- WalletConnect v2 via Reown AppKit
-- Solana Mobile Wallet Adapter
-- POST /wallets, persist to DB
-- Push token → POST /users
+- Monorepo: `apps/mobile` (Expo SDK 55, Expo Router, Zustand) + `services/monitor` (Go, chi, pgx)
+- Go backend: `cmd/server/main.go` — loads .env, connects to postgres, chi router
+- DB: postgres via Docker Compose, `001_init.sql` migrated
+- Makefile: `make dev`, `make migrate`, `make test`
+- Mobile: Expo Router 3 tabs, Zustand store, `services/api.ts`
 
-## Phase 3 — Position Data (not started)
+---
 
-- Aave V3 health factor (Ethereum, Base, Arbitrum)
-- Compound V3 health factor
-- MarginFi (Solana)
-- Solend (Solana)
-- CoinGecko price feed
-- GET /positions/:walletId
+## Phase 2 — Wallet Input (complete)
 
-## Phase 4 — Alert Engine (not started)
+- `POST /users` — push token registration, returns userId
+- `POST /wallets` — add EVM or Solana wallet
+- `GET /wallets/:userId` — list wallets
+- Mobile: `wallet/connect.tsx` — paste address UI wired to store + API
+- Mobile: `_layout.tsx` — push token registered on boot, userId persisted via AsyncStorage
+- Mobile: `store/types.ts` — Wallet, Position, AlertRule types defined
+- Branch: `feat/phase-2-wallet-ui` merged
 
-- Alert CRUD API
-- Monitor goroutine engine
-- Rule evaluator + cooldown
-- Expo push delivery
-- Alert history endpoint
+---
+
+## Phase 3 — Position Data (complete)
+
+- DB: `002_positions.sql` — positions table with upsert unique constraint
+- `internal/protocols/types.go` — shared Position struct with JSON tags
+- `internal/prices/coingecko.go` — CoinGecko client with 60s in-memory cache
+- `internal/protocols/aave/` — Aave V3 via `Pool.getUserAccountData` (Ethereum, Base, Arbitrum)
+- `internal/protocols/compound/` — Compound V3 collateral/borrow HF (Ethereum, Base)
+- `internal/protocols/marginfi/` — MarginFi V2 Borsh decode + I80F48 math
+- `internal/protocols/solend/` — Solend obligation binary decode
+- `internal/storage/positions.go` — batch upsert via pgx SendBatch
+- `internal/api/positions.go` — `GET /positions/:walletId`, concurrent protocol fetch via errgroup
+- Mobile: `getPositions` in api.ts, dashboard with PositionCard + health factor colour coding
+- Branch: `feat/phase-3-positions` (open, not yet merged)
+
+### Key decisions made in Phase 3
+- Aave: use `Pool.getUserAccountData` (returns HF directly) — not UiPoolDataProvider
+- MarginFi Bank struct offsets verified by hand — see VERIFY AGAINST IDL comment in client.go
+- Solend owner field at offset 42 — verify against source before production use
+- Borsh library: `gagliardetto/binary` (not near-api-go)
+- Separate `PositionsHandler` struct — not added to existing `Handler`
+
+---
+
+## Phase 4 — Alert Engine (next)
+
+- Alert CRUD API (`POST /alerts`, `GET /alerts/:userId`, `DELETE /alerts/:alertId`)
+- Monitor goroutine engine (`internal/monitor/engine.go`)
+- Rule evaluator + 30min cooldown (`internal/alerts/evaluator.go`)
+- Expo push delivery (`internal/notifications/expo.go`)
+- Alert history endpoint (`GET /alerts/:userId/history`)
 
 ## Phase 5 — Polish (not started)
 
@@ -70,23 +73,26 @@ Get a running skeleton: Go server connects to postgres, Expo app boots with nav 
 
 | Decision | Reason |
 |----------|--------|
-| Expo SDK 52 (not bare RN) | Faster iteration, OTA updates, Expo Router |
+| Expo SDK 55 (not bare RN) | Faster iteration, OTA updates, Expo Router |
 | chi router (not gin/echo) | Minimal, idiomatic, stdlib-compatible |
 | pgx/v5 directly (no ORM) | Full SQL control, no magic, better perf |
 | Anonymous users (push token = identity) | No auth friction for MVP |
 | CoinGecko free tier for prices | Zero cost for MVP, swap to Pyth later |
 | 60s poll interval default | Balance between freshness and RPC cost |
 | 30min alert cooldown | Prevent notification spam on slow decline |
+| Pool.getUserAccountData for Aave | Returns HF directly — simpler than UiPoolDataProvider |
+| gagliardetto/binary for Borsh | near-api-go has no Borsh decoder |
+| Separate PositionsHandler | Keeps wallet handler focused, avoids god object |
 
 ---
 
 ## Known Issues / Watch Points
 
-- Aave V3 `UiPoolDataProvider` ABI is large — generate Go bindings with `abigen`, don't hand-write
-- MarginFi uses Borsh encoding — use `near-api-go` or write a minimal Borsh decoder
-- Expo push token format changed in SDK 49+ — must use `getExpoPushTokenAsync({ projectId })` not the old form
-- Reown AppKit for React Native is still relatively new — check their docs for latest installation steps before Phase 2
-- Solana Mobile Wallet Adapter only works on Android with a wallet installed — need fallback UX for iOS
+- MarginFi Bank struct byte offsets need verification against IDL — see VERIFY AGAINST IDL comment
+- Solend Obligation owner offset (42) needs verification against program source
+- Expo push token: must use `getExpoPushTokenAsync({ projectId })` (SDK 49+ requirement)
+- Reown AppKit / Solana Mobile Wallet Adapter skipped in Phase 2 — paste-address only for now
+- Solana Mobile Wallet Adapter only works on Android — needs fallback UX for iOS
 
 ---
 
@@ -97,3 +103,17 @@ Local dev requires:
 - Go 1.22+
 - Bun (latest) — used instead of Node/npm for all JS tooling
 - `abigen` from go-ethereum: `go install github.com/ethereum/go-ethereum/cmd/abigen@latest`
+
+### Backend (`services/monitor/.env`)
+```
+DATABASE_URL=postgres://...
+ALCHEMY_API_KEY=...
+HELIUS_API_KEY=...
+COINGECKO_API_KEY=...
+PORT=8080
+```
+
+### Mobile (`apps/mobile/.env`)
+```
+EXPO_PUBLIC_API_URL=http://localhost:8080
+```
