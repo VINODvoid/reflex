@@ -117,7 +117,8 @@ EXPO_PUBLIC_API_URL=http://localhost:8080
 | GET | `/positions/:walletId` | Fetch current positions |
 | POST | `/alerts` | Create alert rule |
 | GET | `/alerts/:userId` | List alert rules |
-| DELETE | `/alerts/:alertId` | Delete alert rule |
+| GET | `/alerts/:userId/history` | Alert event history |
+| DELETE | `/alerts/:alertId?userId=` | Delete alert rule |
 
 ---
 
@@ -125,8 +126,8 @@ EXPO_PUBLIC_API_URL=http://localhost:8080
 
 - [x] Phase 1 — Foundation: server, DB, Expo shell
 - [x] Phase 2 — Wallet Input: add wallets via paste or WalletConnect
-- [ ] Phase 3 — Position Data: Aave, Compound, MarginFi, Solend
-- [ ] Phase 4 — Alert Engine: polling, rule evaluation, push delivery
+- [x] Phase 3 — Position Data: Aave, Compound, MarginFi, Solend
+- [x] Phase 4 — Alert Engine: polling, rule evaluation, push delivery
 - [ ] Phase 5 — Polish: deep links, onboarding, multi-wallet dashboard
 
 ---

@@ -51,7 +51,7 @@ REFLEX is the risk layer. It reads the same wallets NUCLEUS tracks but focuses e
 - POST /wallets on backend, persist to DB
 - Expo push token registration on app start → POST /users
 
-### Phase 3 — Position Data
+### Phase 3 — Position Data ✅
 - Aave V3 health factor polling (Ethereum + Base + Arbitrum)
 - Compound V3 health factor
 - MarginFi (Solana)
@@ -59,12 +59,13 @@ REFLEX is the risk layer. It reads the same wallets NUCLEUS tracks but focuses e
 - CoinGecko price feed for price alerts
 - GET /positions/:walletId endpoint aggregating all protocols
 
-### Phase 4 — Alert Engine
-- Alert rule CRUD API (POST/GET/DELETE /alerts)
-- Monitor engine: polling goroutines per wallet
-- Rule evaluator with cooldown logic
-- Expo push delivery with error handling
+### Phase 4 — Alert Engine ✅
+- Alert rule CRUD API (POST/GET/DELETE /alerts, GET /alerts/:userId/history)
+- Monitor engine: 60s goroutine pool polling wallets with active rules, panic recovery
+- Rule evaluator: pure Evaluate() with 30min cooldown per rule
+- Expo push client: 100-msg batching, single 5xx retry, DeviceNotRegistered handling
 - Alert history endpoint
+- Migration 003: token_active column on users for push token invalidation
 
 ### Phase 5 — Polish
 - HealthBar component with color transitions

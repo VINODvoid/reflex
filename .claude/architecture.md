@@ -42,14 +42,24 @@ Go Backend (chi router)
 All handlers receive dependencies via a `Handler` struct. No globals.
 
 ### Monitor Engine (`internal/monitor/engine.go`)
-- Maintains a `map[walletID]cancelFunc` for goroutine lifecycle
-- On wallet add/remove: spawns or kills goroutine
-- Each goroutine polls on a ticker (configurable interval, default 60s)
-- Poll cycle:
-  1. Fetch positions from all relevant protocols for wallet
-  2. Load active alert rules for wallet from DB
-  3. Run `alerts.Evaluator.Evaluate(rules, positions)`
-  4. For each triggered rule: check cooldown, send push, write `alert_events` row
+- Single engine polls all wallets with active rules on a 60s ticker
+- `Start(ctx)` blocks until ctx cancelled (SIGTERM/SIGINT via `signal.NotifyContext`)
+- `pollOnce`: calls `storage.GetWalletsWithActiveRules`, fans out one goroutine per wallet
+- Each wallet goroutine has `recover()` — panics are logged, never crash the engine
+- `fetchPositions`: runs EVM or Solana fetchers concurrently via `sync.WaitGroup`; one fetcher failure logs and skips, partial results still evaluated (no errgroup cancel)
+- Poll cycle per wallet:
+  1. Fetch positions from relevant protocol clients concurrently
+  2. `storage.UpsertPositions` — keeps position cache fresh (failure is non-fatal)
+  3. `alerts.Evaluate(wallet.Rules, positions)` — pure function, returns triggered rules
+  4. For each triggered rule: get push token → send push → if push fails, return (no cooldown stamp); if ok, `MarkRuleTriggered` + `InsertAlertEvent`
+
+### Shared Fetcher Interface (`internal/protocols/fetch.go`)
+```go
+type Fetcher interface {
+    FetchPositions(ctx context.Context, walletID, address string) ([]Position, error)
+}
+```
+All four protocol clients (aave, compound, marginfi, solend) implement this. Used by both `PositionsHandler` and the monitor engine.
 
 ### Protocol Clients
 
@@ -82,30 +92,31 @@ All handlers receive dependencies via a `Handler` struct. No globals.
 - ⚠️ Owner offset 42 needs verification against Solend program source
 
 ### Alert Evaluator (`internal/alerts/evaluator.go`)
+Pure function — no I/O, no DB. Takes `[]storage.AlertRule` + `[]protocols.Position`, returns `[]TriggeredRule`.
+
 ```go
-type Rule struct {
-    AlertType  string  // "health_factor" | "price_change"
-    Threshold  float64
-    Direction  string  // "below" | "above"
-    Protocol   string
+type TriggeredRule struct {
+    Rule    storage.AlertRule
+    Message string   // human-readable notification body
+    Value   float64  // health factor value at trigger time
 }
 
-type Position struct {
-    Protocol    string
-    HealthFactor float64
-    // ...
-}
-
-func Evaluate(rules []Rule, positions []Position) []TriggeredRule
+func Evaluate(rules []storage.AlertRule, positions []protocols.Position) []TriggeredRule
 ```
 
-Cooldown: default 30 minutes per rule — prevents spam on a slowly declining HF.
+Logic per rule:
+- Skip if `!rule.Active`
+- `health_factor`: find matching position by protocol + optional chainID → check direction (`below`/`above`) → check 30min cooldown via `last_triggered_at`
+- `price_change`: stubbed, always skipped (Phase 5)
+- Cooldown: `time.Since(*LastTriggeredAt) >= 30min` — nil pointer means never triggered
 
 ### Expo Push Client (`internal/notifications/expo.go`)
 - Endpoint: `https://exp.host/--/api/v2/push/send`
-- Batch size: 100 tokens per request
-- Response handling: `DeviceNotRegistered` → mark token inactive in DB
-- Retry: single retry on 5xx, then log and move on
+- Batch size: 100 messages per request (splits automatically)
+- Single retry on 5xx — checks `ctx.Err()` first to skip retry on cancelled context
+- Non-200/5xx: body drained via `io.Copy(io.Discard)` before close (preserves TCP connection reuse)
+- Response: `[]PushTicket` — caller checks `ticket.Details.Error == "DeviceNotRegistered"` and calls `storage.MarkPushTokenInactive`
+- Push token invalidation: `token_active = FALSE` on users table (migration 003)
 
 ---
 
@@ -140,9 +151,18 @@ Dashboard load
   → PositionCard renders with HealthBar
 
 Alert rule creation
-  → alerts.tsx: select wallet → protocol → metric → threshold
-  → api.ts: POST /alerts { ruleParams }
-  → store: append rule
+  → alerts.tsx: select wallet → protocol → direction → threshold (form)
+  → api.ts: POST /alerts { userId, walletId, protocol, alertType, threshold, direction }
+  → store: addAlert(created rule)
+
+Alert rule deletion
+  → alerts.tsx: delete button
+  → api.ts: DELETE /alerts/:alertId?userId=
+  → store: removeAlert(id)
+
+Alert history
+  → api.ts: GET /alerts/:userId/history
+  → returns []AlertEvent { message, valueAtTrigger, sentAt }
 
 Push notification received
   → notifications.ts handler
@@ -162,6 +182,6 @@ Push notification received
 | DELETE | `/wallets/:walletId` | Remove wallet |
 | GET | `/positions/:walletId` | Fetch current positions across all protocols |
 | POST | `/alerts` | Create alert rule |
+| GET | `/alerts/:userId/history` | Alert event history (registered before `/:userId`) |
 | GET | `/alerts/:userId` | List alert rules |
-| DELETE | `/alerts/:alertId` | Delete alert rule |
-| GET | `/alerts/:userId/history` | Alert event history |
+| DELETE | `/alerts/:alertId?userId=` | Delete alert rule (userId scopes ownership) |
