@@ -25,7 +25,7 @@ export default function Dashboard() {
       ) : (
         <FlatList
           data={positions}
-          keyExtractor={(item, index) => `${item.walletId}-${item.protocol}-${index}`}
+          keyExtractor={(item) => `${item.walletId}-${item.protocol}-${item.chainId}`}
           renderItem={({ item }) => <PositionCard position={item} />}
         />
       )}

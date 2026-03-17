@@ -1,8 +1,8 @@
 # REFLEX — Current Build Context
 
-## Status: Phase 3 — Position Data (complete)
+## Status: Phase 4 — Alert Engine (complete)
 
-Active phase: **Phase 4**
+Active phase: **Phase 5**
 Last updated: 2026-03-17
 
 ---
@@ -52,13 +52,25 @@ Last updated: 2026-03-17
 
 ---
 
-## Phase 4 — Alert Engine (next)
+## Phase 4 — Alert Engine (complete)
 
 - Alert CRUD API (`POST /alerts`, `GET /alerts/:userId`, `DELETE /alerts/:alertId`)
-- Monitor goroutine engine (`internal/monitor/engine.go`)
-- Rule evaluator + 30min cooldown (`internal/alerts/evaluator.go`)
-- Expo push delivery (`internal/notifications/expo.go`)
+- Monitor goroutine engine (`internal/monitor/engine.go`) — 60s ticker, goroutine per wallet, panic recovery
+- Rule evaluator + 30min cooldown (`internal/alerts/evaluator.go`) — pure function, health_factor only
+- Expo push delivery (`internal/notifications/expo.go`) — 100-msg batching, single retry on 5xx
 - Alert history endpoint (`GET /alerts/:userId/history`)
+- Storage layer (`internal/storage/alerts.go`) — full CRUD + push token management
+- Shared `protocols.Fetcher` interface (`internal/protocols/fetch.go`)
+- DB migration `003_users_token_active.sql` — adds `token_active` column to users
+- Mobile: `AlertEvent` type, `setAlerts` store action, 4 API functions, full alerts screen
+- `main.go` upgraded with graceful shutdown via SIGTERM/SIGINT
+
+### Key decisions made in Phase 4
+- `price_change` alert type stubbed in evaluator — fires nothing, Phase 5 enhancement
+- `token_active` column added to users table (migration 003) — cleaner than REVOKED: prefix hack
+- Engine polls only wallets with active rules — no wasted RPC calls
+- Push is fire-and-forget (log errors, never block the poll cycle)
+- Graceful HTTP server shutdown on SIGTERM with 5s timeout
 
 ## Phase 5 — Polish (not started)
 

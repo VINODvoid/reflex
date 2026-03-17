@@ -10,6 +10,7 @@ interface StoreState {
   addWallet: (wallet: Wallet) => void;
   removeWallet: (id: string) => void;
   setPositions: (positions: Position[]) => void;
+  setAlerts: (alerts: AlertRule[]) => void;
   addAlert: (alert: AlertRule) => void;
   removeAlert: (id: string) => void;
   setWallets: (wallets: Wallet[]) => void;
@@ -26,6 +27,7 @@ export const useStore = create<StoreState>((set) => ({
   removeWallet: (id) =>
     set((state) => ({ wallets: state.wallets.filter((w) => w.id !== id) })),
   setPositions: (positions) => set({ positions }),
+  setAlerts: (alerts) => set({ alerts }),
   addAlert: (alert) => set((state) => ({ alerts: [...state.alerts, alert] })),
   removeAlert: (id) =>
     set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),

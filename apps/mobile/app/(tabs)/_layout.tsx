@@ -39,12 +39,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="alerts" // Changed from 'alerts' to 'market' or 'prices'
+        name="alerts"
         options={{
-          title: "Market",
+          title: "Alerts",
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
-              name={focused ? "chart-line-variant" : "chart-line"}
+              name={focused ? "bell" : "bell-outline"}
               size={24}
               color={color}
             />
