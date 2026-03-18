@@ -68,6 +68,7 @@ func main() {
 		aaveClient, compoundClient,
 		marginfiClient, solendClient,
 		pushClient,
+		priceClient,
 		60*time.Second,
 	)
 

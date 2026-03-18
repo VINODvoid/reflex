@@ -20,10 +20,11 @@ type AlertRule struct {
 	AlertType       string
 	Threshold       float64
 	Direction       string
-	TokenAddress    *string
-	Active          bool
-	LastTriggeredAt *time.Time
-	CreatedAt       time.Time
+	TokenAddress      *string
+	Active            bool
+	LastTriggeredAt   *time.Time
+	LastPriceChecked  *float64
+	CreatedAt         time.Time
 }
 
 // WalletWithRules groups a wallet with its active alert rules.
@@ -52,7 +53,7 @@ func CreateAlertRule(ctx context.Context, db *pgxpool.Pool, rule AlertRule) (Ale
 		`INSERT INTO alert_rules (user_id, wallet_id, protocol, chain_id, alert_type, threshold, direction, token_address)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id, user_id, wallet_id, protocol, chain_id, alert_type, threshold, direction,
-		           token_address, active, last_triggered_at, created_at`,
+		           token_address, active, last_triggered_at, last_price_checked, created_at`,
 		rule.UserID, rule.WalletID, rule.Protocol, rule.ChainID,
 		rule.AlertType, rule.Threshold, rule.Direction, rule.TokenAddress,
 	)
@@ -67,7 +68,7 @@ func CreateAlertRule(ctx context.Context, db *pgxpool.Pool, rule AlertRule) (Ale
 func GetAlertRulesByUserID(ctx context.Context, db *pgxpool.Pool, userID string) ([]AlertRule, error) {
 	rows, err := db.Query(ctx,
 		`SELECT id, user_id, wallet_id, protocol, chain_id, alert_type, threshold, direction,
-		        token_address, active, last_triggered_at, created_at
+		        token_address, active, last_triggered_at, last_price_checked, created_at
 		 FROM alert_rules WHERE user_id = $1 ORDER BY created_at DESC`,
 		userID,
 	)
@@ -82,7 +83,7 @@ func GetAlertRulesByUserID(ctx context.Context, db *pgxpool.Pool, userID string)
 func GetAlertRulesByWalletID(ctx context.Context, db *pgxpool.Pool, walletID string) ([]AlertRule, error) {
 	rows, err := db.Query(ctx,
 		`SELECT id, user_id, wallet_id, protocol, chain_id, alert_type, threshold, direction,
-		        token_address, active, last_triggered_at, created_at
+		        token_address, active, last_triggered_at, last_price_checked, created_at
 		 FROM alert_rules WHERE wallet_id = $1 ORDER BY created_at DESC`,
 		walletID,
 	)
@@ -108,7 +109,7 @@ func GetWalletsWithActiveRules(ctx context.Context, db *pgxpool.Pool) ([]WalletW
 	rows, err := db.Query(ctx,
 		`SELECT w.id, w.user_id, w.address, w.chain_family,
 		        r.id, r.user_id, r.wallet_id, r.protocol, r.chain_id, r.alert_type,
-		        r.threshold, r.direction, r.token_address, r.active, r.last_triggered_at, r.created_at
+		        r.threshold, r.direction, r.token_address, r.active, r.last_triggered_at, r.last_price_checked, r.created_at
 		 FROM wallets w
 		 JOIN alert_rules r ON r.wallet_id = w.id
 		 WHERE r.active = TRUE
@@ -130,7 +131,7 @@ func GetWalletsWithActiveRules(ctx context.Context, db *pgxpool.Pool) ([]WalletW
 		if err := rows.Scan(
 			&walletID, &userID, &address, &chainFamily,
 			&rule.ID, &rule.UserID, &rule.WalletID, &rule.Protocol, &rule.ChainID, &rule.AlertType,
-			&rule.Threshold, &rule.Direction, &rule.TokenAddress, &rule.Active, &rule.LastTriggeredAt, &rule.CreatedAt,
+			&rule.Threshold, &rule.Direction, &rule.TokenAddress, &rule.Active, &rule.LastTriggeredAt, &rule.LastPriceChecked, &rule.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("storage: scan wallet with rules: %w", err)
 		}
@@ -238,6 +239,19 @@ func MarkPushTokenInactive(ctx context.Context, db *pgxpool.Pool, token string) 
 	return nil
 }
 
+// UpdateLastPriceChecked records the most recent evaluated price for a price_change rule.
+// Called by the engine after evaluation to seed and advance the change_pct baseline.
+func UpdateLastPriceChecked(ctx context.Context, db *pgxpool.Pool, ruleID string, price float64) error {
+	_, err := db.Exec(ctx,
+		"UPDATE alert_rules SET last_price_checked = $1 WHERE id = $2",
+		price, ruleID,
+	)
+	if err != nil {
+		return fmt.Errorf("storage: update last price checked: %w", err)
+	}
+	return nil
+}
+
 // --- internal helpers ---
 
 // rowScanner abstracts pgx.Row and pgx.Rows for scanAlertRule.
@@ -250,7 +264,7 @@ func scanAlertRule(row rowScanner) (AlertRule, error) {
 	if err := row.Scan(
 		&r.ID, &r.UserID, &r.WalletID, &r.Protocol, &r.ChainID,
 		&r.AlertType, &r.Threshold, &r.Direction, &r.TokenAddress,
-		&r.Active, &r.LastTriggeredAt, &r.CreatedAt,
+		&r.Active, &r.LastTriggeredAt, &r.LastPriceChecked, &r.CreatedAt,
 	); err != nil {
 		return AlertRule{}, err
 	}

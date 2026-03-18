@@ -24,9 +24,45 @@ import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
 
 type Protocol = AlertRule["protocol"];
 type Direction = AlertRule["direction"];
+type AlertType = AlertRule["alertType"];
+
+interface TokenOption {
+  label: string;
+  symbol: string;
+  address: string;
+  chainFamily: "evm" | "solana";
+}
 
 const PROTOCOLS: Protocol[] = ["aave_v3", "compound_v3", "marginfi", "solend"];
-const DIRECTIONS: Direction[] = ["below", "above"];
+
+const TOKENS: TokenOption[] = [
+  { label: "ETH",     symbol: "ETH",  address: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", chainFamily: "evm" },
+  { label: "WBTC",    symbol: "WBTC", address: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", chainFamily: "evm" },
+  { label: "LINK",    symbol: "LINK", address: "0x514910771af9ca656af840dff83e8264ecf986ca", chainFamily: "evm" },
+  { label: "UNI",     symbol: "UNI",  address: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", chainFamily: "evm" },
+  { label: "SOL",     symbol: "SOL",  address: "So11111111111111111111111111111111111111112",    chainFamily: "solana" },
+  { label: "USDC",    symbol: "USDC", address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", chainFamily: "solana" },
+  { label: "BTC",     symbol: "BTC",  address: "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E", chainFamily: "solana" },
+];
+
+const DIRECTIONS_BY_TYPE: Record<AlertType, Direction[]> = {
+  health_factor: ["below", "above"],
+  price_change:  ["below", "above", "change_pct"],
+};
+
+const DIRECTION_LABELS: Record<Direction, string> = {
+  below:      "Below",
+  above:      "Above",
+  change_pct: "Change %",
+};
+
+function symbolForAddress(address: string | null): string {
+  if (!address) return "";
+  const token = TOKENS.find(
+    (t) => t.address.toLowerCase() === address.toLowerCase(),
+  );
+  return token ? token.symbol : address.slice(0, 6) + "…";
+}
 
 export default function AlertsScreen() {
   const userId = useStore((state) => state.userId);
@@ -41,7 +77,9 @@ export default function AlertsScreen() {
 
   const [creating, setCreating] = useState(false);
   const [selectedWalletIdx, setSelectedWalletIdx] = useState(0);
+  const [alertType, setAlertType] = useState<AlertType>("health_factor");
   const [protocol, setProtocol] = useState<Protocol>("aave_v3");
+  const [selectedTokenIdx, setSelectedTokenIdx] = useState(0);
   const [direction, setDirection] = useState<Direction>("below");
   const [threshold, setThreshold] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +91,12 @@ export default function AlertsScreen() {
       .then(setAlerts)
       .catch((e) => console.error("fetch alerts:", e));
   }, [userId]);
+
+  function handleAlertTypeChange(type: AlertType) {
+    setAlertType(type);
+    // Reset direction to first valid option for the new type
+    setDirection(DIRECTIONS_BY_TYPE[type][0]);
+  }
 
   async function handleCreate() {
     if (!userId || wallets.length === 0) return;
@@ -66,10 +110,22 @@ export default function AlertsScreen() {
     try {
       const walletIdx = Math.min(selectedWalletIdx, wallets.length - 1);
       const wallet = wallets[walletIdx];
-      const rule = await createAlert(userId, wallet.id, protocol, "health_factor", t, direction);
+
+      let ruleProtocol: Protocol = protocol;
+      let tokenAddress: string | null = null;
+
+      if (alertType === "price_change") {
+        const token = TOKENS[selectedTokenIdx];
+        tokenAddress = token.address;
+        ruleProtocol = token.chainFamily === "solana" ? "marginfi" : "aave_v3";
+      }
+
+      const rule = await createAlert(
+        userId, wallet.id, ruleProtocol, alertType, t, direction,
+        null, tokenAddress,
+      );
       addAlert(rule);
-      setCreating(false);
-      setThreshold("");
+      resetForm();
     } catch {
       setFormError("Failed to create alert. Try again.");
     } finally {
@@ -91,9 +147,25 @@ export default function AlertsScreen() {
     setCreating(false);
     setFormError(null);
     setThreshold("");
+    setAlertType("health_factor");
     setProtocol("aave_v3");
+    setSelectedTokenIdx(0);
     setDirection("below");
     setSelectedWalletIdx(0);
+  }
+
+  function thresholdLabel(): string {
+    if (alertType === "price_change") {
+      return direction === "change_pct" ? "Change Threshold (%)" : "Price (USD)";
+    }
+    return "Health Factor Threshold";
+  }
+
+  function thresholdPlaceholder(): string {
+    if (alertType === "price_change") {
+      return direction === "change_pct" ? "e.g. 5" : "e.g. 2000";
+    }
+    return "e.g. 1.5";
   }
 
   return (
@@ -131,6 +203,35 @@ export default function AlertsScreen() {
         {creating && (
           <View style={[styles.form, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
 
+            {/* Alert Type */}
+            <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+              Alert Type
+            </Text>
+            <View style={styles.chipRow}>
+              {(["health_factor", "price_change"] as AlertType[]).map((type) => {
+                const active = alertType === type;
+                const label = type === "health_factor" ? "Health Factor" : "Token Price";
+                return (
+                  <Pressable
+                    key={type}
+                    style={[styles.chip, {
+                      backgroundColor: active ? colors.accent : colors.bgSecondary,
+                      borderColor: active ? colors.accent : colors.border,
+                    }]}
+                    onPress={() => handleAlertTypeChange(type)}
+                  >
+                    <Text style={[styles.chipText, {
+                      color: active ? "#FFFFFF" : colors.textSecondary,
+                      fontFamily: FontFamily.semibold,
+                    }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Wallet */}
             <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
               Wallet
             </Text>
@@ -163,37 +264,71 @@ export default function AlertsScreen() {
               </View>
             )}
 
-            <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
-              Protocol
-            </Text>
-            <View style={styles.chipRow}>
-              {PROTOCOLS.map((p) => {
-                const active = protocol === p;
-                return (
-                  <Pressable
-                    key={p}
-                    style={[styles.chip, {
-                      backgroundColor: active ? colors.accent : colors.bgSecondary,
-                      borderColor: active ? colors.accent : colors.border,
-                    }]}
-                    onPress={() => setProtocol(p)}
-                  >
-                    <Text style={[styles.chipText, {
-                      color: active ? "#FFFFFF" : colors.textSecondary,
-                      fontFamily: FontFamily.semibold,
-                    }]}>
-                      {p.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {/* Protocol (health_factor) or Token (price_change) */}
+            {alertType === "health_factor" ? (
+              <>
+                <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+                  Protocol
+                </Text>
+                <View style={styles.chipRow}>
+                  {PROTOCOLS.map((p) => {
+                    const active = protocol === p;
+                    return (
+                      <Pressable
+                        key={p}
+                        style={[styles.chip, {
+                          backgroundColor: active ? colors.accent : colors.bgSecondary,
+                          borderColor: active ? colors.accent : colors.border,
+                        }]}
+                        onPress={() => setProtocol(p)}
+                      >
+                        <Text style={[styles.chipText, {
+                          color: active ? "#FFFFFF" : colors.textSecondary,
+                          fontFamily: FontFamily.semibold,
+                        }]}>
+                          {p.toUpperCase()}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+                  Token
+                </Text>
+                <View style={styles.chipRow}>
+                  {TOKENS.map((token, i) => {
+                    const active = selectedTokenIdx === i;
+                    return (
+                      <Pressable
+                        key={token.address}
+                        style={[styles.chip, {
+                          backgroundColor: active ? colors.accent : colors.bgSecondary,
+                          borderColor: active ? colors.accent : colors.border,
+                        }]}
+                        onPress={() => setSelectedTokenIdx(i)}
+                      >
+                        <Text style={[styles.chipText, {
+                          color: active ? "#FFFFFF" : colors.textSecondary,
+                          fontFamily: FontFamily.semibold,
+                        }]}>
+                          {token.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
+            {/* Direction */}
             <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
               Direction
             </Text>
             <View style={styles.chipRow}>
-              {DIRECTIONS.map((d) => {
+              {DIRECTIONS_BY_TYPE[alertType].map((d) => {
                 const active = direction === d;
                 return (
                   <Pressable
@@ -208,15 +343,16 @@ export default function AlertsScreen() {
                       color: active ? "#FFFFFF" : colors.textSecondary,
                       fontFamily: FontFamily.semibold,
                     }]}>
-                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                      {DIRECTION_LABELS[d]}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
 
+            {/* Threshold */}
             <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
-              Health Factor Threshold
+              {thresholdLabel()}
             </Text>
             <TextInput
               style={[styles.input, {
@@ -227,7 +363,7 @@ export default function AlertsScreen() {
               }]}
               value={threshold}
               onChangeText={setThreshold}
-              placeholder="e.g. 1.5"
+              placeholder={thresholdPlaceholder()}
               placeholderTextColor={colors.textTertiary}
               keyboardType="decimal-pad"
             />
@@ -292,11 +428,57 @@ export default function AlertsScreen() {
 function AlertRuleCard({ rule, onDelete }: { rule: AlertRule; onDelete: () => void }) {
   const colors = useThemeColors();
 
+  function cardDetail(): React.ReactNode {
+    if (rule.alertType === "price_change") {
+      const symbol = symbolForAddress(rule.tokenAddress);
+      if (rule.direction === "change_pct") {
+        return (
+          <Text style={[styles.cardDetail, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
+            Alert on{" "}
+            <Text style={[styles.cardHighlight, { color: colors.accent, fontFamily: FontFamily.monoSemibold }]}>
+              {rule.threshold}%
+            </Text>
+            {" "}price change for{" "}
+            <Text style={[styles.cardHighlight, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
+              {symbol}
+            </Text>
+          </Text>
+        );
+      }
+      return (
+        <Text style={[styles.cardDetail, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
+          Alert when{" "}
+          <Text style={[styles.cardHighlight, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
+            {symbol}
+          </Text>{" "}
+          is{" "}
+          <Text style={[styles.cardHighlight, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
+            {rule.direction}
+          </Text>{" "}
+          <Text style={[styles.cardHighlight, { color: colors.accent, fontFamily: FontFamily.monoSemibold }]}>
+            ${rule.threshold}
+          </Text>
+        </Text>
+      );
+    }
+    return (
+      <Text style={[styles.cardDetail, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
+        Alert when HF is{" "}
+        <Text style={[styles.cardHighlight, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
+          {rule.direction}
+        </Text>{" "}
+        <Text style={[styles.cardHighlight, { color: colors.accent, fontFamily: FontFamily.monoSemibold }]}>
+          {rule.threshold}
+        </Text>
+      </Text>
+    );
+  }
+
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
       <View style={styles.cardHeader}>
         <Text style={[styles.cardProtocol, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
-          {rule.protocol.toUpperCase()}
+          {rule.alertType === "price_change" ? "PRICE" : rule.protocol.toUpperCase()}
         </Text>
         <Pressable
           onPress={onDelete}
@@ -307,15 +489,7 @@ function AlertRuleCard({ rule, onDelete }: { rule: AlertRule; onDelete: () => vo
           </Text>
         </Pressable>
       </View>
-      <Text style={[styles.cardDetail, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
-        Alert when HF is{" "}
-        <Text style={[styles.cardHighlight, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
-          {rule.direction}
-        </Text>{" "}
-        <Text style={[styles.cardHighlight, { color: colors.accent, fontFamily: FontFamily.monoSemibold }]}>
-          {rule.threshold}
-        </Text>
-      </Text>
+      {cardDetail()}
       {rule.chainId != null && (
         <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
           Chain {rule.chainId}

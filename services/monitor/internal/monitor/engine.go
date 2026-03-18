@@ -5,11 +5,13 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"reflex/services/monitor/internal/alerts"
 	"reflex/services/monitor/internal/notifications"
+	"reflex/services/monitor/internal/prices"
 	"reflex/services/monitor/internal/protocols"
 	"reflex/services/monitor/internal/storage"
 
@@ -25,6 +27,7 @@ type Engine struct {
 	marginfi     protocols.Fetcher
 	solend       protocols.Fetcher
 	pushClient   *notifications.PushClient
+	priceClient  *prices.Client
 	pollInterval time.Duration
 }
 
@@ -33,6 +36,7 @@ func NewEngine(
 	db *pgxpool.Pool,
 	aave, compound, marginfi, solend protocols.Fetcher,
 	pushClient *notifications.PushClient,
+	priceClient *prices.Client,
 	pollInterval time.Duration,
 ) *Engine {
 	return &Engine{
@@ -42,6 +46,7 @@ func NewEngine(
 		marginfi:     marginfi,
 		solend:       solend,
 		pushClient:   pushClient,
+		priceClient:  priceClient,
 		pollInterval: pollInterval,
 	}
 }
@@ -108,10 +113,101 @@ func (e *Engine) pollWallet(ctx context.Context, w storage.WalletWithRules) {
 		log.Printf("engine: upsert positions for wallet %s: %v", w.WalletID, err)
 	}
 
-	triggered := alerts.Evaluate(w.Rules, positions)
+	// Seed price_change rules that have no baseline yet — do not pass to Evaluate.
+	currentPrices := e.seedAndFetchPrices(ctx, w.Rules)
+
+	triggered := alerts.Evaluate(w.Rules, positions, currentPrices)
 	for _, t := range triggered {
 		e.fireAlert(ctx, t, w.UserID)
 	}
+}
+
+// seedAndFetchPrices handles price_change rules:
+//   - Rules with nil LastPriceChecked are seeded with the current price (no alert fires).
+//   - Returns a map of lowercase token address → USD price for all remaining price_change rules.
+func (e *Engine) seedAndFetchPrices(ctx context.Context, rules []storage.AlertRule) map[string]float64 {
+	var toFetch []storage.AlertRule
+	for _, r := range rules {
+		if r.AlertType != "price_change" || r.TokenAddress == nil {
+			continue
+		}
+		if r.LastPriceChecked == nil {
+			// Seed the baseline; don't add to toFetch so Evaluate skips it.
+			e.seedPrice(ctx, r)
+			continue
+		}
+		toFetch = append(toFetch, r)
+	}
+	if len(toFetch) == 0 {
+		return map[string]float64{}
+	}
+	return e.fetchCurrentPrices(ctx, toFetch)
+}
+
+// seedPrice fetches the current price for a rule and stores it as the baseline.
+func (e *Engine) seedPrice(ctx context.Context, rule storage.AlertRule) {
+	coinID, ok := prices.TokenToCoinGeckoID(*rule.TokenAddress)
+	if !ok {
+		log.Printf("engine: unknown token for seeding rule %s: %s", rule.ID, *rule.TokenAddress)
+		return
+	}
+	priceMap, err := e.priceClient.GetUSDPrices(ctx, []string{coinID})
+	if err != nil {
+		log.Printf("engine: seed price fetch for rule %s: %v", rule.ID, err)
+		return
+	}
+	p, ok := priceMap[coinID]
+	if !ok {
+		return
+	}
+	if err := storage.UpdateLastPriceChecked(ctx, e.db, rule.ID, p); err != nil {
+		log.Printf("engine: seed UpdateLastPriceChecked for rule %s: %v", rule.ID, err)
+	} else {
+		log.Printf("engine: seeded price %.4f for rule %s", p, rule.ID)
+	}
+}
+
+// fetchCurrentPrices batch-fetches USD prices for a set of price_change rules.
+// Returns a map keyed by lowercase token address.
+func (e *Engine) fetchCurrentPrices(ctx context.Context, rules []storage.AlertRule) map[string]float64 {
+	// Collect unique token address → coinGecko ID pairs.
+	addrToID := make(map[string]string)
+	for _, r := range rules {
+		addr := strings.ToLower(*r.TokenAddress)
+		if _, alreadyMapped := addrToID[addr]; alreadyMapped {
+			continue
+		}
+		coinID, ok := prices.TokenToCoinGeckoID(addr)
+		if !ok {
+			log.Printf("engine: unknown token address %s for rule %s", addr, r.ID)
+			continue
+		}
+		addrToID[addr] = coinID
+	}
+
+	if len(addrToID) == 0 {
+		return map[string]float64{}
+	}
+
+	coinIDs := make([]string, 0, len(addrToID))
+	for _, id := range addrToID {
+		coinIDs = append(coinIDs, id)
+	}
+
+	idToPrice, err := e.priceClient.GetUSDPrices(ctx, coinIDs)
+	if err != nil {
+		log.Printf("engine: fetchCurrentPrices: %v", err)
+		return map[string]float64{}
+	}
+
+	// Build address-keyed map for evaluator.
+	result := make(map[string]float64, len(addrToID))
+	for addr, id := range addrToID {
+		if p, ok := idToPrice[id]; ok {
+			result[addr] = p
+		}
+	}
+	return result
 }
 
 // fetchPositions dispatches to EVM or Solana protocol clients based on chain family.
@@ -203,6 +299,14 @@ func (e *Engine) fireAlert(ctx context.Context, t alerts.TriggeredRule, userID s
 
 	if err := storage.MarkRuleTriggered(ctx, e.db, t.Rule.ID); err != nil {
 		log.Printf("engine: mark rule triggered %s: %v", t.Rule.ID, err)
+	}
+
+	// Advance the price baseline for change_pct rules so the next cycle measures
+	// from the price at which this alert fired, not from the original seed.
+	if t.Rule.AlertType == "price_change" {
+		if err := storage.UpdateLastPriceChecked(ctx, e.db, t.Rule.ID, t.Value); err != nil {
+			log.Printf("engine: update last price checked for rule %s: %v", t.Rule.ID, err)
+		}
 	}
 
 	if err := storage.InsertAlertEvent(ctx, e.db, storage.AlertEvent{

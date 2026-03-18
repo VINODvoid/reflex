@@ -75,9 +75,13 @@ func (h *AlertsHandler) CreateAlert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "threshold must be greater than 0", http.StatusBadRequest)
 		return
 	}
-	validDirections := map[string]bool{"below": true, "above": true}
+	validDirections := map[string]bool{"below": true, "above": true, "change_pct": true}
 	if !validDirections[req.Direction] {
-		http.Error(w, "direction must be 'below' or 'above'", http.StatusBadRequest)
+		http.Error(w, "direction must be 'below', 'above', or 'change_pct'", http.StatusBadRequest)
+		return
+	}
+	if req.AlertType == "price_change" && (req.TokenAddress == nil || *req.TokenAddress == "") {
+		http.Error(w, "tokenAddress is required for price_change alerts", http.StatusBadRequest)
 		return
 	}
 
