@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRef } from "react";
+import { useAppKit, useAccount } from "@reown/appkit-react-native";
 import { useStore } from "../../store";
 import { createWallet } from "../../services/api";
 import {
@@ -36,6 +36,28 @@ export default function ConnectWallet() {
 
   const userId = useStore((state) => state.userId);
   const addWallet = useStore((state) => state.addWallet);
+
+  const { open, disconnect } = useAppKit();
+  const { address: wcAddress, isConnected } = useAccount();
+
+  // When WalletConnect returns an address, auto-save and dismiss
+  useEffect(() => {
+    if (!isConnected || !wcAddress || !userId) return;
+
+    setLoading(true);
+    setError(null);
+    createWallet(userId, wcAddress, "evm", label.trim() || undefined)
+      .then((created) => {
+        addWallet(created);
+        disconnect("eip155");
+        router.back();
+      })
+      .catch(() => {
+        setError("Failed to add wallet. Try again.");
+        disconnect("eip155");
+      })
+      .finally(() => setLoading(false));
+  }, [isConnected, wcAddress]);
 
   function onPressIn() {
     Animated.spring(btnScale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
@@ -121,6 +143,33 @@ export default function ConnectWallet() {
             );
           })}
         </View>
+
+        {/* WalletConnect button — EVM only */}
+        {chainFamily === "evm" && (
+          <>
+            <Pressable
+              style={[styles.wcButton, {
+                backgroundColor: colors.accentSoft,
+                borderColor: colors.accent,
+              }]}
+              onPress={() => open({ view: "Connect" })}
+              disabled={loading}
+            >
+              <MaterialCommunityIcons name="wallet-outline" size={18} color={colors.accent} />
+              <Text style={[styles.wcButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+                Connect with WalletConnect
+              </Text>
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.borderSubtle }]} />
+              <Text style={[styles.dividerText, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+                or paste address
+              </Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.borderSubtle }]} />
+            </View>
+          </>
+        )}
 
         {/* Address input */}
         <Text style={[styles.fieldLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
@@ -237,6 +286,33 @@ const styles = StyleSheet.create({
   },
   chainLabel: {
     fontSize: FontSize.bodySmall,
+  },
+  wcButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    marginTop: Spacing.sm,
+  },
+  wcButtonText: {
+    fontSize: FontSize.bodySmall,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginVertical: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: FontSize.caption,
+    letterSpacing: 0.2,
   },
   input: {
     borderRadius: Radius.card,

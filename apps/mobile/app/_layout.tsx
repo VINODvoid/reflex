@@ -1,9 +1,11 @@
+import "react-native-get-random-values";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, Stack } from "expo-router";
 import { useEffect } from "react";
 import { Appearance } from "react-native";
 import { STORAGE_KEYS } from "../constants/storageKeys";
 import { useStore, ThemePreference, RefreshInterval } from "../store";
+import { AppKitProvider, AppKit, appKitInstance } from "../services/appkit";
 
 export default function RootLayout() {
   const setTheme = useStore((state) => state.setTheme);
@@ -49,5 +51,10 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <AppKitProvider instance={appKitInstance}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <AppKit />
+    </AppKitProvider>
+  );
 }
