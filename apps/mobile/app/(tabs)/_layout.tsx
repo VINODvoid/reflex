@@ -10,6 +10,7 @@ import { useStore } from "../../store";
 import { FontFamily, FontSize, Radius } from "../../design-system/tokens";
 import { STORAGE_KEYS } from "../../constants/storageKeys";
 import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
+import { useNotificationDeepLink } from "../../hooks/useNotificationDeepLink";
 
 // ── Tab config ───────────────────────────────────────────────────────────────
 
@@ -173,6 +174,8 @@ const styles = StyleSheet.create({
 export default function TabLayout() {
   const setUserId = useStore((state) => state.setUserId);
   const setWallets = useStore((state) => state.setWallets);
+
+  useNotificationDeepLink();
 
   useEffect(() => {
     (async () => {

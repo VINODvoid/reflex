@@ -27,6 +27,9 @@ interface StoreState {
   removeAlert: (id: string) => void;
   setWallets: (wallets: Wallet[]) => void;
 
+  highlightedPositionKey: string | null;
+  setHighlightedPositionKey: (key: string | null) => void;
+
   setTheme: (theme: ThemePreference) => void;
   setSystemScheme: (scheme: "light" | "dark") => void;
   setNotifPush: (v: boolean) => void;
@@ -40,6 +43,9 @@ export const useStore = create<StoreState>((set) => ({
   positions: [],
   alerts: [],
   userId: null,
+
+  highlightedPositionKey: null,
+  setHighlightedPositionKey: (key) => set({ highlightedPositionKey: key }),
 
   theme: "system",
   systemScheme: "light",

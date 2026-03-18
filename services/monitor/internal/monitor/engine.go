@@ -4,6 +4,7 @@ package monitor
 import (
 	"context"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -154,6 +155,20 @@ func (e *Engine) fetchPositions(ctx context.Context, w storage.WalletWithRules) 
 	return all
 }
 
+// buildPushData constructs the notification data map for a triggered alert rule.
+// chainId is omitted when nil (Solana protocols have no chain ID).
+func buildPushData(rule storage.AlertRule) map[string]string {
+	data := map[string]string{
+		"ruleId":   rule.ID,
+		"walletId": rule.WalletID,
+		"protocol": rule.Protocol,
+	}
+	if rule.ChainID != nil {
+		data["chainId"] = strconv.Itoa(*rule.ChainID)
+	}
+	return data
+}
+
 // fireAlert sends a push notification for a triggered rule, records the event,
 // and updates the rule's cooldown timestamp.
 func (e *Engine) fireAlert(ctx context.Context, t alerts.TriggeredRule, userID string) {
@@ -170,7 +185,7 @@ func (e *Engine) fireAlert(ctx context.Context, t alerts.TriggeredRule, userID s
 		To:    token,
 		Title: "REFLEX Alert",
 		Body:  t.Message,
-		Data:  map[string]string{"ruleId": t.Rule.ID, "protocol": t.Rule.Protocol},
+		Data:  buildPushData(t.Rule),
 	}})
 	if err != nil {
 		log.Printf("engine: send push for rule %s: %v", t.Rule.ID, err)

@@ -1,5 +1,6 @@
-import { useEffect } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import type { LayoutChangeEvent } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { getPositions } from "../../services/api";
@@ -19,8 +20,13 @@ export default function Dashboard() {
   const wallets = useStore((state) => state.wallets);
   const positions = useStore((state) => state.positions);
   const setPositions = useStore((state) => state.setPositions);
+  const highlightedPositionKey = useStore((state) => state.highlightedPositionKey);
+  const setHighlightedPositionKey = useStore((state) => state.setHighlightedPositionKey);
   const colors = useThemeColors();
   const isDark = useIsDark();
+
+  const scrollRef = useRef<ScrollView>(null);
+  const offsetsRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (wallets.length === 0) return;
@@ -28,6 +34,20 @@ export default function Dashboard() {
       .then((results) => setPositions(results.flat()))
       .catch((e) => console.error("fetch positions:", e));
   }, [wallets]);
+
+  useEffect(() => {
+    if (!highlightedPositionKey) return;
+    const y = offsetsRef.current[highlightedPositionKey];
+    if (y !== undefined) {
+      scrollRef.current?.scrollTo({ y, animated: true });
+    }
+    const timer = setTimeout(() => setHighlightedPositionKey(null), 3000);
+    return () => clearTimeout(timer);
+  }, [highlightedPositionKey]);
+
+  function handleCardMeasure(key: string, y: number): void {
+    offsetsRef.current[key] = y;
+  }
 
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
@@ -46,28 +66,55 @@ export default function Dashboard() {
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={positions}
-            keyExtractor={(item) => `${item.walletId}-${item.protocol}-${item.chainId}`}
-            renderItem={({ item }) => <PositionCard position={item} />}
+          <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.list}
-          />
+          >
+            {positions.map((item) => {
+              const positionKey = `${item.walletId}-${item.protocol}-${item.chainId}`;
+              return (
+                <PositionCard
+                  key={positionKey}
+                  position={item}
+                  isHighlighted={positionKey === highlightedPositionKey}
+                  onMeasure={(y) => handleCardMeasure(positionKey, y)}
+                />
+              );
+            })}
+          </ScrollView>
         )}
       </View>
     </SafeAreaView>
   );
 }
 
-function PositionCard({ position }: { position: Position }) {
+interface PositionCardProps {
+  position: Position;
+  isHighlighted: boolean;
+  onMeasure: (y: number) => void;
+}
+
+function PositionCard({ position, isHighlighted, onMeasure }: PositionCardProps) {
   const colors = useThemeColors();
   const hfBg = getHFBgColor(position.healthFactor, colors);
 
+  function handleLayout(event: LayoutChangeEvent): void {
+    onMeasure(event.nativeEvent.layout.y);
+  }
+
   return (
-    <View style={[styles.card, {
-      backgroundColor: colors.surface,
-      borderColor: colors.borderSubtle,
-    }]}>
+    <View
+      onLayout={handleLayout}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: isHighlighted ? colors.accent : colors.borderSubtle,
+          borderWidth: isHighlighted ? 2 : 1,
+        },
+      ]}
+    >
       <View style={styles.cardHeader}>
         <Text style={[styles.protocol, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
           {position.protocol.toUpperCase()}
@@ -132,7 +179,6 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: Radius.card,
-    borderWidth: 1,
     padding: Spacing.md,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
