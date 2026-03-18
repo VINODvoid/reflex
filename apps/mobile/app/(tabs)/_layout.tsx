@@ -1,26 +1,29 @@
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useColors, FontFamily } from "../../design-system/tokens";
 
 export default function TabLayout() {
+  const colors = useColors();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#4F46E5", // Modern Indigo
-        tabBarInactiveTintColor: "#94A3B8",
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: {
           borderTopWidth: 1,
-          borderTopColor: "#F1F5F9",
-          height: 88, // Increased height for modern spacing (iPhone safe area)
+          borderTopColor: colors.borderSubtle,
+          height: 88,
           paddingBottom: 30,
           paddingTop: 12,
-          backgroundColor: "#FFFFFF",
-          elevation: 0, // Remove shadow on Android
-          shadowOpacity: 0, // Remove shadow on iOS
+          backgroundColor: colors.bgPrimary,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: "600",
+          fontFamily: FontFamily.semibold,
           marginTop: 4,
         },
       }}
@@ -28,10 +31,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Portfolio", // "Portfolio" is more standard than "Home" in crypto
+          title: "Positions",
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
-              name={focused ? "wallet" : "wallet-outline"}
+              name={focused ? "view-dashboard" : "view-dashboard-outline"}
               size={24}
               color={color}
             />
@@ -57,8 +60,8 @@ export default function TabLayout() {
           title: "Settings",
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
-              name={focused ? "account-circle" : "account-circle-outline"}
-              size={24} // Using 'account' is more modern for settings/profile combos
+              name={focused ? "cog" : "cog-outline"}
+              size={24}
               color={color}
             />
           ),

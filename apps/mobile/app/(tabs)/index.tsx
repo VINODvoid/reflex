@@ -1,116 +1,195 @@
 import { useEffect } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useColorScheme } from "react-native";
 import { getPositions } from "../../services/api";
 import { useStore } from "../../store";
 import { Position } from "../../store/types";
+import {
+  useColors,
+  FontFamily,
+  FontSize,
+  Spacing,
+  Radius,
+  getHFColor,
+  getHFBgColor,
+} from "../../design-system/tokens";
 
 export default function Dashboard() {
   const wallets = useStore((state) => state.wallets);
   const positions = useStore((state) => state.positions);
   const setPositions = useStore((state) => state.setPositions);
+  const colors = useColors();
+  const isDark = useColorScheme() === "dark";
 
   useEffect(() => {
     if (wallets.length === 0) return;
-
     Promise.all(wallets.map((w) => getPositions(w.id)))
       .then((results) => setPositions(results.flat()))
       .catch((e) => console.error("fetch positions:", e));
   }, [wallets]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Positions</Text>
-      {positions.length === 0 ? (
-        <Text style={styles.empty}>No active positions.</Text>
-      ) : (
-        <FlatList
-          data={positions}
-          keyExtractor={(item) => `${item.walletId}-${item.protocol}-${item.chainId}`}
-          renderItem={({ item }) => <PositionCard position={item} />}
-        />
-      )}
-    </View>
+    <SafeAreaView style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <View style={[styles.container, { backgroundColor: colors.bgPrimary }]}>
+        <Text style={[styles.heading, { color: colors.textPrimary, fontFamily: FontFamily.heading }]}>
+          Positions
+        </Text>
+        {positions.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
+              No active positions
+            </Text>
+            <Text style={[styles.emptyBody, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+              Add a wallet to start monitoring your DeFi positions.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={positions}
+            keyExtractor={(item) => `${item.walletId}-${item.protocol}-${item.chainId}`}
+            renderItem={({ item }) => <PositionCard position={item} />}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.list}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 function PositionCard({ position }: { position: Position }) {
+  const colors = useColors();
   const hf = position.healthFactor.toFixed(2);
-  const isAtRisk = position.healthFactor < 1.2;
+  const hfColor = getHFColor(position.healthFactor, colors);
+  const hfBg = getHFBgColor(position.healthFactor, colors);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, {
+      backgroundColor: colors.surface,
+      borderColor: colors.borderSubtle,
+    }]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.protocol}>{position.protocol.toUpperCase()}</Text>
-        <Text style={[styles.hf, isAtRisk ? styles.hfDanger : styles.hfSafe]}>
-          HF {hf}
+        <Text style={[styles.protocol, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
+          {position.protocol.toUpperCase()}
+        </Text>
+        <View style={[styles.hfBadge, { backgroundColor: hfBg }]}>
+          <Text style={[styles.hf, { color: hfColor, fontFamily: FontFamily.monoSemibold }]}>
+            {hf}
+          </Text>
+          <Text style={[styles.hfLabel, { color: hfColor, fontFamily: FontFamily.semibold }]}>
+            HF
+          </Text>
+        </View>
+      </View>
+      <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
+      <View style={styles.cardRow}>
+        <Text style={[styles.rowLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+          COLLATERAL
+        </Text>
+        <Text style={[styles.rowValue, { color: colors.textPrimary, fontFamily: FontFamily.monoSemibold }]}>
+          ${position.collateralUsd.toLocaleString()}
         </Text>
       </View>
       <View style={styles.cardRow}>
-        <Text style={styles.label}>Collateral</Text>
-        <Text style={styles.value}>${position.collateralUsd.toLocaleString()}</Text>
-      </View>
-      <View style={styles.cardRow}>
-        <Text style={styles.label}>Debt</Text>
-        <Text style={styles.value}>${position.debtUsd.toLocaleString()}</Text>
+        <Text style={[styles.rowLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+          DEBT
+        </Text>
+        <Text style={[styles.rowValue, { color: colors.textPrimary, fontFamily: FontFamily.monoSemibold }]}>
+          ${position.debtUsd.toLocaleString()}
+        </Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: "#0f0f0f",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
   },
   heading: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#ffffff",
-    marginBottom: 16,
+    fontSize: FontSize.h2,
+    letterSpacing: -0.4,
+    marginBottom: Spacing.md,
   },
-  empty: {
-    color: "#888888",
-    fontSize: 14,
+  list: {
+    gap: Spacing.sm,
+    paddingBottom: Spacing.lg,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 80,
+    gap: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: FontSize.h4,
+    letterSpacing: -0.2,
+  },
+  emptyBody: {
+    fontSize: FontSize.bodySmall,
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 260,
   },
   card: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    padding: Spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
+    alignItems: "center",
+    marginBottom: Spacing.sm,
   },
   protocol: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#cccccc",
-    letterSpacing: 0.5,
+    fontSize: FontSize.label,
+    letterSpacing: 0.8,
+  },
+  hfBadge: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.sharp,
   },
   hf: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: FontSize.h4,
+    letterSpacing: -0.4,
   },
-  hfSafe: {
-    color: "#4ade80",
+  hfLabel: {
+    fontSize: FontSize.caption,
+    letterSpacing: 0.5,
   },
-  hfDanger: {
-    color: "#f87171",
+  divider: {
+    height: 1,
+    marginBottom: Spacing.sm,
   },
   cardRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 4,
   },
-  label: {
-    fontSize: 13,
-    color: "#888888",
+  rowLabel: {
+    fontSize: FontSize.caption,
+    letterSpacing: 0.5,
   },
-  value: {
-    fontSize: 13,
-    color: "#ffffff",
+  rowValue: {
+    fontSize: FontSize.dataSmall,
+    letterSpacing: -0.2,
   },
 });
