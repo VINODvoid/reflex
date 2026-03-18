@@ -6,20 +6,21 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { router } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAlert, deleteAlert, getAlerts } from "../../services/api";
 import { useStore } from "../../store";
 import { AlertRule } from "../../store/types";
 import {
-  useColors,
   FontFamily,
   FontSize,
   Spacing,
   Radius,
 } from "../../design-system/tokens";
+import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
 
 type Protocol = AlertRule["protocol"];
 type Direction = AlertRule["direction"];
@@ -35,8 +36,8 @@ export default function AlertsScreen() {
   const addAlert = useStore((state) => state.addAlert);
   const removeAlert = useStore((state) => state.removeAlert);
 
-  const colors = useColors();
-  const isDark = useColorScheme() === "dark";
+  const colors = useThemeColors();
+  const isDark = useIsDark();
 
   const [creating, setCreating] = useState(false);
   const [selectedWalletIdx, setSelectedWalletIdx] = useState(0);
@@ -105,16 +106,25 @@ export default function AlertsScreen() {
           <Text style={[styles.heading, { color: colors.textPrimary, fontFamily: FontFamily.heading }]}>
             Alerts
           </Text>
-          {!creating && (
+          <View style={styles.headerActions}>
             <Pressable
-              style={[styles.addButton, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}
-              onPress={() => setCreating(true)}
+              onPress={() => router.push("/alert-history")}
+              hitSlop={8}
+              style={[styles.historyBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
             >
-              <Text style={[styles.addButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
-                + New
-              </Text>
+              <MaterialCommunityIcons name="history" size={16} color={colors.textSecondary} />
             </Pressable>
-          )}
+            {!creating && (
+              <Pressable
+                style={[styles.addButton, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}
+                onPress={() => setCreating(true)}
+              >
+                <Text style={[styles.addButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+                  + New
+                </Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {/* Create Form */}
@@ -280,7 +290,7 @@ export default function AlertsScreen() {
 }
 
 function AlertRuleCard({ rule, onDelete }: { rule: AlertRule; onDelete: () => void }) {
-  const colors = useColors();
+  const colors = useThemeColors();
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
@@ -332,6 +342,19 @@ const styles = StyleSheet.create({
     fontSize: FontSize.h2,
     letterSpacing: -0.4,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  historyBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.sharp,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   addButton: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -360,7 +383,7 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: Spacing.sm,
-    paddingBottom: Spacing.lg,
+    paddingBottom: 108,
   },
   form: {
     borderRadius: Radius.card,

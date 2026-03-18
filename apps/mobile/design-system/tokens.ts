@@ -47,6 +47,10 @@ const dark = {
 
 export type ColorTokens = typeof light;
 
+export function getColors(scheme: "light" | "dark"): ColorTokens {
+  return scheme === "dark" ? dark : light;
+}
+
 export function useColors(): ColorTokens {
   const scheme = useColorScheme();
   return scheme === "dark" ? dark : light;

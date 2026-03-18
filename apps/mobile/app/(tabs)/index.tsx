@@ -2,26 +2,25 @@ import { useEffect } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "react-native";
 import { getPositions } from "../../services/api";
 import { useStore } from "../../store";
 import { Position } from "../../store/types";
 import {
-  useColors,
   FontFamily,
   FontSize,
   Spacing,
   Radius,
-  getHFColor,
   getHFBgColor,
 } from "../../design-system/tokens";
+import { HealthBar } from "../../components/HealthBar";
+import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
 
 export default function Dashboard() {
   const wallets = useStore((state) => state.wallets);
   const positions = useStore((state) => state.positions);
   const setPositions = useStore((state) => state.setPositions);
-  const colors = useColors();
-  const isDark = useColorScheme() === "dark";
+  const colors = useThemeColors();
+  const isDark = useIsDark();
 
   useEffect(() => {
     if (wallets.length === 0) return;
@@ -61,9 +60,7 @@ export default function Dashboard() {
 }
 
 function PositionCard({ position }: { position: Position }) {
-  const colors = useColors();
-  const hf = position.healthFactor.toFixed(2);
-  const hfColor = getHFColor(position.healthFactor, colors);
+  const colors = useThemeColors();
   const hfBg = getHFBgColor(position.healthFactor, colors);
 
   return (
@@ -76,12 +73,7 @@ function PositionCard({ position }: { position: Position }) {
           {position.protocol.toUpperCase()}
         </Text>
         <View style={[styles.hfBadge, { backgroundColor: hfBg }]}>
-          <Text style={[styles.hf, { color: hfColor, fontFamily: FontFamily.monoSemibold }]}>
-            {hf}
-          </Text>
-          <Text style={[styles.hfLabel, { color: hfColor, fontFamily: FontFamily.semibold }]}>
-            HF
-          </Text>
+          <HealthBar healthFactor={position.healthFactor} showLabel={true} height={4} />
         </View>
       </View>
       <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
@@ -119,7 +111,7 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: Spacing.sm,
-    paddingBottom: Spacing.lg,
+    paddingBottom: 108,
   },
   emptyState: {
     flex: 1,
@@ -159,20 +151,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   hfBadge: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: Radius.sharp,
-  },
-  hf: {
-    fontSize: FontSize.h4,
-    letterSpacing: -0.4,
-  },
-  hfLabel: {
-    fontSize: FontSize.caption,
-    letterSpacing: 0.5,
+    minWidth: 100,
   },
   divider: {
     height: 1,

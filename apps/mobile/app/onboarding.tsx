@@ -26,10 +26,10 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useColors, Spacing, Radius, FontFamily } from "../design-system/tokens";
+import { Spacing, Radius, FontFamily } from "../design-system/tokens";
+import { useThemeColors, useIsDark } from "../hooks/useThemeColors";
 import { STORAGE_KEYS } from "../constants/storageKeys";
 
 export const ONBOARDING_SEEN_KEY = STORAGE_KEYS.ONBOARDING_SEEN;
@@ -129,7 +129,8 @@ function usePulse(min: number, max: number, duration: number) {
 
 // ─── Visual Components ─────────────────────────────────────────────────────────
 
-type VisualProps = { colors: ReturnType<typeof useColors>; isDark: boolean };
+import { ColorTokens } from "../design-system/tokens";
+type VisualProps = { colors: ColorTokens; isDark: boolean };
 
 // ── Slide 1: Animated gauge rings ───────────────────────────────────────────
 
@@ -180,27 +181,105 @@ function HeroVisual({ colors, isDark }: VisualProps) {
   );
 }
 
-// ── Slide 2: Stacked cards — staggered entrance ─────────────────────────────
+// ── Slide 2: Depth-shuffle card deck ─────────────────────────────────────────
+// Front card slides DOWN into the back of the deck. No exits, no teleports.
+// All 3 cards animate simultaneously to new positions — buttery smooth.
+
+const DECK_Y  = [0, 28, 52];
+const DECK_OP = [1, 0.68, 0.36];
+const DECK_SC = [1, 0.93, 0.86];
+const DECK_STEP = 580;
+const DECK_PAUSE = 1600;
 
 function PositionsVisual({ colors, isDark }: VisualProps) {
-  const cards = [
-    { protocol: "AAVE V3",   hf: "3.12", safe: true  },
-    { protocol: "COMPOUND",  hf: "1.64", safe: false },
-    { protocol: "MARGINFI",  hf: "2.01", safe: true  },
+  const CARDS = [
+    { protocol: "AAVE V3",  hf: "3.12", safe: true  },
+    { protocol: "COMPOUND", hf: "1.64", safe: false },
+    { protocol: "MARGINFI", hf: "2.01", safe: true  },
   ];
 
-  const anims = [useEntrance(0), useEntrance(80), useEntrance(160)];
+  const ty0 = useRef(new Animated.Value(DECK_Y[0])).current;
+  const ty1 = useRef(new Animated.Value(DECK_Y[1])).current;
+  const ty2 = useRef(new Animated.Value(DECK_Y[2])).current;
+  const op0 = useRef(new Animated.Value(DECK_OP[0])).current;
+  const op1 = useRef(new Animated.Value(DECK_OP[1])).current;
+  const op2 = useRef(new Animated.Value(DECK_OP[2])).current;
+  const sc0 = useRef(new Animated.Value(DECK_SC[0])).current;
+  const sc1 = useRef(new Animated.Value(DECK_SC[1])).current;
+  const sc2 = useRef(new Animated.Value(DECK_SC[2])).current;
+
+  // z-order: front card renders last (highest z). Card 0 starts at front.
+  const [zOrder, setZOrder] = useState([3, 2, 1]);
+  const slotRef = useRef([0, 1, 2]); // slotRef.current[i] = slot of card i (0=front)
+
+  useEffect(() => {
+    const TY = [ty0, ty1, ty2];
+    const OP = [op0, op1, op2];
+    const SC = [sc0, sc1, sc2];
+    const ease = Easing.bezier(0.4, 0, 0.2, 1); // smooth material ease
+
+    function shuffle() {
+      const s = slotRef.current;
+      const front = s.indexOf(0);
+      const mid   = s.indexOf(1);
+      const back  = s.indexOf(2);
+
+      // front → back, mid → front, back → mid
+      slotRef.current = slotRef.current.map(v => (v + 2) % 3);
+
+      // Update z-order BEFORE animation so no mid-animation re-render:
+      // new front (was mid) gets highest z, front (going to back) drops to lowest
+      setZOrder(() => {
+        const z = [0, 0, 0];
+        z[mid]   = 3; // rises to front
+        z[back]  = 2; // rises to mid
+        z[front] = 1; // sinks to back
+        return z;
+      });
+
+      Animated.parallel([
+        // Front sinks to back — shrinks and fades behind the others
+        Animated.timing(TY[front], { toValue: DECK_Y[2], duration: DECK_STEP, easing: ease, useNativeDriver: true }),
+        Animated.timing(OP[front], { toValue: DECK_OP[2], duration: DECK_STEP, useNativeDriver: true }),
+        Animated.timing(SC[front], { toValue: DECK_SC[2], duration: DECK_STEP, easing: ease, useNativeDriver: true }),
+        // Mid rises to front — expands and brightens
+        Animated.timing(TY[mid], { toValue: DECK_Y[0], duration: DECK_STEP, easing: ease, useNativeDriver: true }),
+        Animated.timing(OP[mid], { toValue: DECK_OP[0], duration: DECK_STEP, useNativeDriver: true }),
+        Animated.timing(SC[mid], { toValue: DECK_SC[0], duration: DECK_STEP, easing: ease, useNativeDriver: true }),
+        // Back advances to mid
+        Animated.timing(TY[back], { toValue: DECK_Y[1], duration: DECK_STEP, easing: ease, useNativeDriver: true }),
+        Animated.timing(OP[back], { toValue: DECK_OP[1], duration: DECK_STEP, useNativeDriver: true }),
+        Animated.timing(SC[back], { toValue: DECK_SC[1], duration: DECK_STEP, easing: ease, useNativeDriver: true }),
+      ]).start();
+    }
+
+    let interval: ReturnType<typeof setInterval>;
+    const timeout = setTimeout(() => {
+      shuffle();
+      interval = setInterval(shuffle, DECK_PAUSE + DECK_STEP);
+    }, 1000);
+
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const TY = [ty0, ty1, ty2];
+  const OP = [op0, op1, op2];
+  const SC = [sc0, sc1, sc2];
 
   return (
     <View style={styles.gaugeContainer}>
       <View style={styles.stackWrap}>
-        {cards.map((card, i) => (
+        {CARDS.map((card, i) => (
           <Animated.View key={card.protocol} style={[styles.stackCard, {
-            backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "#FFFFFF",
-            borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.05)",
-            top: i * 24, left: i * 16, right: i * 16,
-            zIndex: 3 - i, opacity: anims[i].opacity,
-            transform: anims[i].transform,
+            backgroundColor: isDark ? colors.surfaceElevated : colors.surface,
+            borderColor: colors.borderSubtle,
+            transform: [{ translateY: TY[i] }, { scale: SC[i] }],
+            opacity: OP[i],
+            zIndex: zOrder[i],
+            elevation: zOrder[i],
           }]}>
             <Text style={[styles.stackProtocol, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
               {card.protocol}
@@ -218,37 +297,94 @@ function PositionsVisual({ colors, isDark }: VisualProps) {
   );
 }
 
-// ── Slide 3: Alert card — pulsing dot + value ────────────────────────────────
+// ── Slide 3: Push notification banners cycling ────────────────────────────────
+// Each banner slides in from the top with a spring, holds, then swipes right
+// off screen like a real dismiss — exactly what the user gets on their phone.
+
+const PUSH_NOTIFS = [
+  { protocol: "Aave V3",     hf: "1.18", message: "Health factor below 1.25", chain: "Ethereum" },
+  { protocol: "Compound V3", hf: "1.44", message: "Health factor below 1.50", chain: "Base"     },
+  { protocol: "MarginFi",    hf: "1.27", message: "Health factor below 1.30", chain: "Solana"   },
+];
 
 function AlertsVisual({ colors, isDark }: VisualProps) {
-  const entrance  = useEntrance(0);
-  const dotPulse  = usePulse(1, 0, 900);
-  const valPulse  = usePulse(1, 0.55, 1800);
+  const slideX  = useRef(new Animated.Value(-G_OUTER)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale   = useRef(new Animated.Value(0.94)).current;
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    // Reset — card waits off-screen to the left
+    slideX.setValue(-G_OUTER);
+    opacity.setValue(0);
+    scale.setValue(0.94);
+
+    const enter = setTimeout(() => {
+      // Slide in from left
+      Animated.parallel([
+        Animated.timing(slideX,  { toValue: 0, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(scale,   { toValue: 1, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start(() => {
+        // Hold, then slide out to the right
+        const dismiss = setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(slideX,  { toValue: G_OUTER, duration: 400, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+          ]).start(() => setIdx(i => (i + 1) % PUSH_NOTIFS.length));
+        }, 2000);
+        return () => clearTimeout(dismiss);
+      });
+    }, 400);
+
+    return () => clearTimeout(enter);
+  }, [idx]);
+
+  const notif = PUSH_NOTIFS[idx];
+  const cardBg   = isDark ? colors.surfaceElevated : colors.surface;
+  const dotBlink = usePulse(1, 0.2, 700);
 
   return (
-    <Animated.View style={[styles.gaugeContainer, entrance]}>
-      <View style={[styles.alertCard, {
-        backgroundColor: isDark ? "rgba(248,113,113,0.11)" : colors.dangerSoft,
-        borderColor: isDark ? "rgba(248,113,113,0.22)" : "rgba(192,57,43,0.18)",
+    <View style={styles.notifZone}>
+      <Animated.View style={[styles.notifBanner, {
+        backgroundColor: cardBg,
+        borderColor: colors.borderSubtle,
+        borderLeftColor: colors.danger,
+        shadowColor: colors.danger,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: isDark ? 0.35 : 0.12,
+        shadowRadius: 18,
+        elevation: 8,
+        transform: [{ translateX: slideX }, { scale }],
+        opacity,
       }]}>
-        <View style={styles.alertHeader}>
-          <Animated.View style={[styles.alertDot, { backgroundColor: colors.danger, opacity: dotPulse }]} />
-          <Text style={[styles.alertTitle, { color: colors.danger, fontFamily: FontFamily.semibold }]}>
-            HEALTH FACTOR ALERT
+        {/* Header row */}
+        <View style={styles.notifHead}>
+          <Animated.View style={[styles.notifDot, { backgroundColor: colors.danger, opacity: dotBlink }]} />
+          <Text style={[styles.notifApp, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+            REFLEX
+          </Text>
+          <Text style={[styles.notifNow, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+            now
           </Text>
         </View>
-        <Animated.Text style={[styles.alertValue, {
-          color: isDark ? "#F87171" : colors.textPrimary,
-          fontFamily: FontFamily.monoSemibold,
-          opacity: valPulse,
-        }]}>
-          1.18
-        </Animated.Text>
-        <Text style={[styles.alertBody, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
-          Below your threshold of 1.25 on Aave V3
-        </Text>
-      </View>
-    </Animated.View>
+
+        {/* Body */}
+        <View style={styles.notifBody}>
+          <View style={styles.notifTitleRow}>
+            <Text style={[styles.notifProtocol, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
+              {notif.protocol}
+            </Text>
+            <Text style={[styles.notifHF, { color: colors.danger, fontFamily: FontFamily.monoSemibold }]}>
+              {notif.hf}
+            </Text>
+          </View>
+          <Text style={[styles.notifMsg, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
+            {notif.message} · {notif.chain}
+          </Text>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -312,9 +448,8 @@ const VISUALS = [HeroVisual, PositionsVisual, AlertsVisual, WalletVisual];
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
-  const colors = useColors();
-  const scheme  = useColorScheme();
-  const isDark  = scheme === "dark";
+  const colors = useThemeColors();
+  const isDark  = useIsDark();
 
   const [fontsLoaded] = useFonts({
     Syne_400Regular,
@@ -516,10 +651,15 @@ const styles = StyleSheet.create({
 
   // ── Positions
   stackWrap: {
-    width: G_OUTER, height: 136, position: "relative",
+    width: G_OUTER,
+    height: 120,
+    position: "relative",
   },
   stackCard: {
     position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: 64,
     borderRadius: Radius.card,
     borderWidth: 1,
@@ -531,24 +671,44 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
-    elevation: 2,
   },
   stackProtocol: { fontSize: 11, letterSpacing: 0.8 },
   stackHF: { fontSize: 20, letterSpacing: -0.5 },
 
-  // ── Alert
-  alertCard: {
+  // ── Notification banner
+  notifZone: {
+    width: G_OUTER,
+    height: G_OUTER,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "visible",
+  },
+  notifBanner: {
     width: G_OUTER,
     borderRadius: Radius.card,
     borderWidth: 1,
-    padding: 20,
+    borderLeftWidth: 3,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 8,
   },
-  alertHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  alertDot: { width: 7, height: 7, borderRadius: 3.5 },
-  alertTitle: { fontSize: 10, letterSpacing: 1 },
-  alertValue: { fontSize: 44, letterSpacing: -1.5, lineHeight: 48 },
-  alertBody: { fontSize: 13, lineHeight: 19 },
+  notifHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  notifDot: { width: 6, height: 6, borderRadius: 3 },
+  notifApp: { flex: 1, fontSize: 10, letterSpacing: 1.2 },
+  notifNow: { fontSize: 11 },
+  notifBody: { gap: 3 },
+  notifTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
+  notifProtocol: { fontSize: 13, letterSpacing: -0.1 },
+  notifHF: { fontSize: 16, letterSpacing: -0.5 },
+  notifMsg: { fontSize: 12, lineHeight: 17 },
 
   // ── Wallet
   walletField: {
