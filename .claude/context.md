@@ -72,12 +72,53 @@ Last updated: 2026-03-17
 - Push is fire-and-forget (log errors, never block the poll cycle)
 - Graceful HTTP server shutdown on SIGTERM with 5s timeout
 
-## Phase 5 — Polish (not started)
+## Phase 5 — Polish (complete)
 
-- HealthBar component
-- Alert history screen
-- Notification deep links
-- Onboarding flow
+Last updated: 2026-03-18
+
+### What was built
+
+**Design system & tokens**
+- `design-system/tokens.ts` — full color token set (light + dark), `FontFamily`, `FontSize`, `Spacing`, `Radius`
+- `getColors(scheme)` utility exported for non-hook usage
+- `getHFColor`, `getHFBgColor` helpers for health factor color coding
+
+**Theme engine**
+- `store/index.ts` — added `theme: "system"|"light"|"dark"`, `systemScheme: "light"|"dark"`, notification prefs, `refreshInterval`
+- `hooks/useThemeColors.ts` — `useThemeColors()` and `useIsDark()` hooks that read from Zustand store directly (not `useColorScheme`) — eliminates `Appearance.setColorScheme` race conditions
+- `app/_layout.tsx` — seeds `systemScheme` from `Appearance.getColorScheme()` on boot, subscribes to `Appearance.addChangeListener` for live system theme changes
+- All screens and components migrated from `useColors()` + `useColorScheme()` to `useThemeColors()` + `useIsDark()`
+
+**New screens & components**
+- `app/(tabs)/wallets.tsx` — dedicated Wallets tab: card per wallet with chain badge (EVM/Solana icon), label, truncated address, remove button, empty state CTA
+- `app/alert-history.tsx` — alert event history screen with timestamp, protocol, value at trigger
+- `components/HealthBar.tsx` — animated health factor bar with color transitions (green→yellow→red)
+- `app/onboarding.tsx` — 4-slide onboarding with animated gauge rings, read-only messaging, skip/continue flow
+
+**Premium tab bar**
+- Replaced Expo Router default tab bar with fully custom `PremiumTabBar` component
+- Floating pill design: `position: absolute`, `bottom: 20`, `borderRadius: 22`, surface bg, elevation 16 shadow
+- Animated sliding accent-soft pill indicator (`Animated.spring`, `tension: 180, friction: 14`)
+- Per-tab icon scale bounce on press (`0.82` → spring back)
+- Active: accent icon (filled variant) + accent semibold label; inactive: tertiary at 70% opacity
+
+**Settings screen (full rebuild)**
+- Appearance: three theme preview cards showing actual mini UI mockup (header, content cards, tab bar) using real color tokens; System card splits left=light / right=dark using `200%` width clip trick
+- Notifications: Push Alerts toggle, Sound toggle, Quiet Hours toggle — with cascading disable when push is off
+- Monitoring: Refresh Interval chip selector (5/15/30/60 min)
+- All settings persisted to AsyncStorage and restored on app launch
+
+**Tab bar label fix**
+- `height: 92`, `paddingTop: 10`, `lineHeight: 14`, `marginTop: 2` — labels no longer clip on any font scale
+
+**Storage keys added**
+- `THEME`, `NOTIF_PUSH`, `NOTIF_SOUND`, `NOTIF_QUIET_HOURS`, `REFRESH_INTERVAL`
+
+### Key decisions made in Phase 5
+- Don't use `Appearance.setColorScheme` to drive UI colors — Zustand store is source of truth; `systemScheme` tracked via `addChangeListener` independently
+- `MockupContent` + `200%/−100%` clip pattern for system split preview — no pixel measurements needed
+- Custom `tabBar` prop on `<Tabs>` for full control — Expo Router's default tabBar cannot achieve floating pill
+- `108px` bottom padding on all tab screen lists so content clears the floating bar
 
 ---
 

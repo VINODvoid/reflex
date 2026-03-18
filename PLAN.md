@@ -67,12 +67,16 @@ REFLEX is the risk layer. It reads the same wallets NUCLEUS tracks but focuses e
 - Alert history endpoint
 - Migration 003: token_active column on users for push token invalidation
 
-### Phase 5 — Polish
-- HealthBar component with color transitions
-- Alert history screen
-- Notification deep-link → opens relevant position
-- Multi-wallet support in dashboard
-- Onboarding flow (explain read-only, no custody)
+### Phase 5 — Polish ✅
+- HealthBar component with color transitions (green → yellow → red)
+- Alert history screen (`/alert-history`)
+- Onboarding flow — 4 slides with animated rings, read-only messaging
+- Full design system: color tokens, spacing, typography, radius
+- Theme engine: Light / Dark / System with store-driven color hooks, live system scheme tracking
+- Dedicated Wallets tab with chain badges and card UI
+- Premium floating pill tab bar — animated sliding indicator, spring press, accent active state
+- Settings: theme preview cards (split light/dark for System), notification toggles, refresh interval chips
+- All settings persisted to AsyncStorage and restored on app launch
 
 ---
 

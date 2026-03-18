@@ -7,9 +7,20 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { router } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAlert, deleteAlert, getAlerts } from "../../services/api";
 import { useStore } from "../../store";
 import { AlertRule } from "../../store/types";
+import {
+  FontFamily,
+  FontSize,
+  Spacing,
+  Radius,
+} from "../../design-system/tokens";
+import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
 
 type Protocol = AlertRule["protocol"];
 type Direction = AlertRule["direction"];
@@ -24,6 +35,9 @@ export default function AlertsScreen() {
   const setAlerts = useStore((state) => state.setAlerts);
   const addAlert = useStore((state) => state.addAlert);
   const removeAlert = useStore((state) => state.removeAlert);
+
+  const colors = useThemeColors();
+  const isDark = useIsDark();
 
   const [creating, setCreating] = useState(false);
   const [selectedWalletIdx, setSelectedWalletIdx] = useState(0);
@@ -50,17 +64,9 @@ export default function AlertsScreen() {
     setSubmitting(true);
     setFormError(null);
     try {
-      // Clamp in case wallets changed while the form was open.
       const walletIdx = Math.min(selectedWalletIdx, wallets.length - 1);
       const wallet = wallets[walletIdx];
-      const rule = await createAlert(
-        userId,
-        wallet.id,
-        protocol,
-        "health_factor",
-        t,
-        direction,
-      );
+      const rule = await createAlert(userId, wallet.id, protocol, "health_factor", t, direction);
       addAlert(rule);
       setCreating(false);
       setThreshold("");
@@ -81,316 +87,400 @@ export default function AlertsScreen() {
     }
   }
 
+  function resetForm() {
+    setCreating(false);
+    setFormError(null);
+    setThreshold("");
+    setProtocol("aave_v3");
+    setDirection("below");
+    setSelectedWalletIdx(0);
+  }
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.heading}>Alerts</Text>
-        {!creating && (
-          <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
-            <Text style={styles.addButtonText}>+ New</Text>
-          </Pressable>
-        )}
-      </View>
+    <SafeAreaView style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <View style={[styles.container, { backgroundColor: colors.bgPrimary }]}>
 
-      {creating && (
-        <View style={styles.form}>
-          <Text style={styles.formLabel}>Wallet</Text>
-          {wallets.length === 0 ? (
-            <Text style={styles.hint}>Add a wallet first.</Text>
-          ) : (
-            <View style={styles.chipRow}>
-              {wallets.map((w, i) => (
-                <Pressable
-                  key={w.id}
-                  style={[styles.chip, selectedWalletIdx === i && styles.chipActive]}
-                  onPress={() => setSelectedWalletIdx(i)}
-                >
-                  <Text
-                    style={[styles.chipText, selectedWalletIdx === i && styles.chipTextActive]}
-                    numberOfLines={1}
-                  >
-                    {w.label || `${w.address.slice(0, 6)}…${w.address.slice(-4)}`}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          <Text style={styles.formLabel}>Protocol</Text>
-          <View style={styles.chipRow}>
-            {PROTOCOLS.map((p) => (
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.heading, { color: colors.textPrimary, fontFamily: FontFamily.heading }]}>
+            Alerts
+          </Text>
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => router.push("/alert-history")}
+              hitSlop={8}
+              style={[styles.historyBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+            >
+              <MaterialCommunityIcons name="history" size={16} color={colors.textSecondary} />
+            </Pressable>
+            {!creating && (
               <Pressable
-                key={p}
-                style={[styles.chip, protocol === p && styles.chipActive]}
-                onPress={() => setProtocol(p)}
+                style={[styles.addButton, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}
+                onPress={() => setCreating(true)}
               >
-                <Text style={[styles.chipText, protocol === p && styles.chipTextActive]}>
-                  {p.toUpperCase()}
+                <Text style={[styles.addButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+                  + New
                 </Text>
               </Pressable>
-            ))}
-          </View>
-
-          <Text style={styles.formLabel}>Direction</Text>
-          <View style={styles.chipRow}>
-            {DIRECTIONS.map((d) => (
-              <Pressable
-                key={d}
-                style={[styles.chip, direction === d && styles.chipActive]}
-                onPress={() => setDirection(d)}
-              >
-                <Text style={[styles.chipText, direction === d && styles.chipTextActive]}>
-                  {d.charAt(0).toUpperCase() + d.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Text style={styles.formLabel}>Health Factor Threshold</Text>
-          <TextInput
-            style={styles.input}
-            value={threshold}
-            onChangeText={setThreshold}
-            placeholder="e.g. 1.5"
-            placeholderTextColor="#666666"
-            keyboardType="decimal-pad"
-          />
-
-          {formError && <Text style={styles.error}>{formError}</Text>}
-
-          <View style={styles.formActions}>
-            <Pressable
-              style={styles.cancelButton}
-              onPress={() => {
-                setCreating(false);
-                setFormError(null);
-                setThreshold("");
-                setProtocol("aave_v3");
-                setDirection("below");
-                setSelectedWalletIdx(0);
-              }}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.submitButton, (submitting || wallets.length === 0) && styles.submitButtonDisabled]}
-              onPress={handleCreate}
-              disabled={submitting || wallets.length === 0}
-            >
-              <Text style={styles.submitButtonText}>
-                {submitting ? "Saving..." : "Save Alert"}
-              </Text>
-            </Pressable>
+            )}
           </View>
         </View>
-      )}
 
-      {alerts.length === 0 && !creating ? (
-        <Text style={styles.empty}>No alerts set up yet.</Text>
-      ) : (
-        <FlatList
-          data={alerts}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <AlertRuleCard rule={item} onDelete={() => handleDelete(item.id)} />
-          )}
-        />
-      )}
-    </View>
+        {/* Create Form */}
+        {creating && (
+          <View style={[styles.form, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+
+            <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+              Wallet
+            </Text>
+            {wallets.length === 0 ? (
+              <Text style={[styles.hint, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+                Add a wallet first.
+              </Text>
+            ) : (
+              <View style={styles.chipRow}>
+                {wallets.map((w, i) => {
+                  const active = selectedWalletIdx === i;
+                  return (
+                    <Pressable
+                      key={w.id}
+                      style={[styles.chip, {
+                        backgroundColor: active ? colors.accent : colors.bgSecondary,
+                        borderColor: active ? colors.accent : colors.border,
+                      }]}
+                      onPress={() => setSelectedWalletIdx(i)}
+                    >
+                      <Text style={[styles.chipText, {
+                        color: active ? "#FFFFFF" : colors.textSecondary,
+                        fontFamily: FontFamily.semibold,
+                      }]} numberOfLines={1}>
+                        {w.label || `${w.address.slice(0, 6)}…${w.address.slice(-4)}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+              Protocol
+            </Text>
+            <View style={styles.chipRow}>
+              {PROTOCOLS.map((p) => {
+                const active = protocol === p;
+                return (
+                  <Pressable
+                    key={p}
+                    style={[styles.chip, {
+                      backgroundColor: active ? colors.accent : colors.bgSecondary,
+                      borderColor: active ? colors.accent : colors.border,
+                    }]}
+                    onPress={() => setProtocol(p)}
+                  >
+                    <Text style={[styles.chipText, {
+                      color: active ? "#FFFFFF" : colors.textSecondary,
+                      fontFamily: FontFamily.semibold,
+                    }]}>
+                      {p.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+              Direction
+            </Text>
+            <View style={styles.chipRow}>
+              {DIRECTIONS.map((d) => {
+                const active = direction === d;
+                return (
+                  <Pressable
+                    key={d}
+                    style={[styles.chip, {
+                      backgroundColor: active ? colors.accent : colors.bgSecondary,
+                      borderColor: active ? colors.accent : colors.border,
+                    }]}
+                    onPress={() => setDirection(d)}
+                  >
+                    <Text style={[styles.chipText, {
+                      color: active ? "#FFFFFF" : colors.textSecondary,
+                      fontFamily: FontFamily.semibold,
+                    }]}>
+                      {d.charAt(0).toUpperCase() + d.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.formLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+              Health Factor Threshold
+            </Text>
+            <TextInput
+              style={[styles.input, {
+                backgroundColor: colors.bgSecondary,
+                borderColor: colors.border,
+                color: colors.textPrimary,
+                fontFamily: FontFamily.mono,
+              }]}
+              value={threshold}
+              onChangeText={setThreshold}
+              placeholder="e.g. 1.5"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="decimal-pad"
+            />
+
+            {formError && (
+              <Text style={[styles.error, { color: colors.danger, fontFamily: FontFamily.body }]}>
+                {formError}
+              </Text>
+            )}
+
+            <View style={styles.formActions}>
+              <Pressable
+                style={[styles.cancelButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                onPress={resetForm}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.submitButton, {
+                  backgroundColor: colors.accent,
+                  opacity: (submitting || wallets.length === 0) ? 0.5 : 1,
+                }]}
+                onPress={handleCreate}
+                disabled={submitting || wallets.length === 0}
+              >
+                <Text style={[styles.submitButtonText, { fontFamily: FontFamily.semibold }]}>
+                  {submitting ? "Saving…" : "Save Alert"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* List */}
+        {alerts.length === 0 && !creating ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
+              No alerts yet
+            </Text>
+            <Text style={[styles.emptyBody, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+              Create an alert to get notified before your health factor hits a critical level.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={alerts}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <AlertRuleCard rule={item} onDelete={() => handleDelete(item.id)} />
+            )}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.list}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
-function AlertRuleCard({
-  rule,
-  onDelete,
-}: {
-  rule: AlertRule;
-  onDelete: () => void;
-}) {
+function AlertRuleCard({ rule, onDelete }: { rule: AlertRule; onDelete: () => void }) {
+  const colors = useThemeColors();
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardProtocol}>{rule.protocol.toUpperCase()}</Text>
-        <Pressable onPress={onDelete} style={styles.deleteButton}>
-          <Text style={styles.deleteButtonText}>Delete</Text>
+        <Text style={[styles.cardProtocol, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
+          {rule.protocol.toUpperCase()}
+        </Text>
+        <Pressable
+          onPress={onDelete}
+          style={[styles.deleteButton, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
+        >
+          <Text style={[styles.deleteButtonText, { color: colors.danger, fontFamily: FontFamily.semibold }]}>
+            Delete
+          </Text>
         </Pressable>
       </View>
-      <Text style={styles.cardDetail}>
+      <Text style={[styles.cardDetail, { color: colors.textSecondary, fontFamily: FontFamily.body }]}>
         Alert when HF is{" "}
-        <Text style={styles.cardHighlight}>{rule.direction}</Text>{" "}
-        <Text style={styles.cardHighlight}>{rule.threshold}</Text>
+        <Text style={[styles.cardHighlight, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}>
+          {rule.direction}
+        </Text>{" "}
+        <Text style={[styles.cardHighlight, { color: colors.accent, fontFamily: FontFamily.monoSemibold }]}>
+          {rule.threshold}
+        </Text>
       </Text>
       {rule.chainId != null && (
-        <Text style={styles.cardMeta}>Chain {rule.chainId}</Text>
+        <Text style={[styles.cardMeta, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+          Chain {rule.chainId}
+        </Text>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: "#0f0f0f",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   heading: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#ffffff",
+    fontSize: FontSize.h2,
+    letterSpacing: -0.4,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  historyBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.sharp,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   addButton: {
-    backgroundColor: "#4F46E5",
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 8,
+    borderRadius: Radius.sharp,
+    borderWidth: 1,
   },
   addButtonText: {
-    color: "#ffffff",
-    fontWeight: "600",
-    fontSize: 14,
+    fontSize: FontSize.bodySmall,
   },
-  empty: {
-    color: "#888888",
-    fontSize: 14,
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 80,
+    gap: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: FontSize.h4,
+    letterSpacing: -0.2,
+  },
+  emptyBody: {
+    fontSize: FontSize.bodySmall,
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 260,
+  },
+  list: {
+    gap: Spacing.sm,
+    paddingBottom: 108,
   },
   form: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   formLabel: {
-    color: "#888888",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 8,
-    marginTop: 12,
-    textTransform: "uppercase",
+    fontSize: FontSize.label,
     letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.md,
+    textTransform: "uppercase",
   },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: Spacing.sm,
   },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: "#2a2a2a",
+    borderRadius: Radius.sharp,
     borderWidth: 1,
-    borderColor: "#333333",
-  },
-  chipActive: {
-    backgroundColor: "#4F46E5",
-    borderColor: "#4F46E5",
   },
   chipText: {
-    color: "#aaaaaa",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  chipTextActive: {
-    color: "#ffffff",
+    fontSize: FontSize.label,
   },
   input: {
-    backgroundColor: "#2a2a2a",
-    borderRadius: 8,
+    borderRadius: Radius.card,
     padding: 12,
-    color: "#ffffff",
-    fontSize: 15,
+    fontSize: FontSize.body,
     borderWidth: 1,
-    borderColor: "#333333",
   },
   hint: {
-    color: "#666666",
-    fontSize: 13,
+    fontSize: FontSize.bodySmall,
   },
   error: {
-    color: "#f87171",
-    fontSize: 13,
-    marginTop: 8,
+    fontSize: FontSize.bodySmall,
+    marginTop: Spacing.sm,
   },
   formActions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
   },
   cancelButton: {
     flex: 1,
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: "#2a2a2a",
+    borderRadius: Radius.card,
     alignItems: "center",
+    borderWidth: 1,
   },
   cancelButtonText: {
-    color: "#aaaaaa",
-    fontWeight: "600",
-    fontSize: 14,
+    fontSize: FontSize.bodySmall,
   },
   submitButton: {
     flex: 1,
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: "#4F46E5",
+    borderRadius: Radius.card,
     alignItems: "center",
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
   submitButtonText: {
-    color: "#ffffff",
-    fontWeight: "600",
-    fontSize: 14,
+    color: "#FFFFFF",
+    fontSize: FontSize.bodySmall,
   },
   card: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    padding: Spacing.md,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   cardProtocol: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#cccccc",
-    letterSpacing: 0.5,
+    fontSize: FontSize.label,
+    letterSpacing: 0.8,
   },
   deleteButton: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: "#2a1a1a",
+    borderRadius: Radius.sharp,
     borderWidth: 1,
-    borderColor: "#f87171",
   },
   deleteButtonText: {
-    color: "#f87171",
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: FontSize.label,
   },
   cardDetail: {
-    color: "#aaaaaa",
-    fontSize: 14,
+    fontSize: FontSize.bodySmall,
+    lineHeight: 20,
   },
-  cardHighlight: {
-    color: "#ffffff",
-    fontWeight: "600",
-  },
+  cardHighlight: {},
   cardMeta: {
-    color: "#666666",
-    fontSize: 12,
+    fontSize: FontSize.caption,
     marginTop: 4,
   },
 });
