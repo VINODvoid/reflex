@@ -5,7 +5,6 @@ import (
 	"context"
 	"log"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -168,12 +167,12 @@ func (e *Engine) seedPrice(ctx context.Context, rule storage.AlertRule) {
 }
 
 // fetchCurrentPrices batch-fetches USD prices for a set of price_change rules.
-// Returns a map keyed by lowercase token address.
+// Returns a map keyed by original token address (as stored in the rule).
 func (e *Engine) fetchCurrentPrices(ctx context.Context, rules []storage.AlertRule) map[string]float64 {
 	// Collect unique token address → coinGecko ID pairs.
 	addrToID := make(map[string]string)
 	for _, r := range rules {
-		addr := strings.ToLower(*r.TokenAddress)
+		addr := *r.TokenAddress
 		if _, alreadyMapped := addrToID[addr]; alreadyMapped {
 			continue
 		}

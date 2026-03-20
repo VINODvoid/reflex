@@ -4,7 +4,6 @@ package alerts
 import (
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"reflex/services/monitor/internal/protocols"
@@ -23,7 +22,7 @@ type TriggeredRule struct {
 // Evaluate checks each rule against the current positions and prices, returning all triggered rules.
 // It is a pure function — no I/O, no DB access.
 //
-// currentPrices maps lowercase token address → current USD price.
+// currentPrices maps token address (original case) → current USD price.
 // Pass an empty map when there are no price_change rules to evaluate.
 //
 // A rule triggers when:
@@ -86,7 +85,7 @@ func evaluatePriceChange(rule storage.AlertRule, currentPrices map[string]float6
 		return TriggeredRule{}, false
 	}
 
-	price, ok := currentPrices[strings.ToLower(*rule.TokenAddress)]
+	price, ok := currentPrices[*rule.TokenAddress]
 	if !ok {
 		return TriggeredRule{}, false
 	}

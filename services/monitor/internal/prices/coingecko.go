@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	cacheTTL   = 60 * time.Second
+	cacheTTL   = 45 * time.Second // shorter than poll interval so price is always fresh
 	apiBaseURL = "https://api.coingecko.com/api/v3"
 )
 
@@ -100,6 +100,9 @@ func (c *Client) fetch(ctx context.Context, coinIDs []string) (map[string]float6
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("prices: coingecko rate limit hit (429) — consider adding COINGECKO_API_KEY")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("prices: coingecko returned status %d", resp.StatusCode)
 	}

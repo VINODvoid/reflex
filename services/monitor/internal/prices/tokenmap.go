@@ -29,9 +29,14 @@ var tokenAddressToID = map[string]string{
 }
 
 // TokenToCoinGeckoID returns the CoinGecko coin ID for the given token address.
-// EVM addresses are normalised to lowercase before lookup.
+// EVM addresses (0x-prefixed) are normalised to lowercase before lookup.
+// Solana addresses are case-sensitive base58 and looked up as-is.
 // Returns ("", false) for unknown tokens.
 func TokenToCoinGeckoID(address string) (string, bool) {
-	id, ok := tokenAddressToID[strings.ToLower(address)]
+	key := address
+	if strings.HasPrefix(address, "0x") || strings.HasPrefix(address, "0X") {
+		key = strings.ToLower(address)
+	}
+	id, ok := tokenAddressToID[key]
 	return id, ok
 }

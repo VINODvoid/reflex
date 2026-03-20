@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -12,6 +13,12 @@ import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppKit, useAccount } from "@reown/appkit-react-native";
+import {
+  transact,
+  SolanaMobileWalletAdapterError,
+  SolanaMobileWalletAdapterErrorCode,
+} from "@solana-mobile/mobile-wallet-adapter-protocol";
+import bs58 from "bs58";
 import { useStore } from "../../store";
 import { createWallet } from "../../services/api";
 import {
@@ -84,6 +91,64 @@ export default function ConnectWallet() {
       router.back();
     } catch {
       setError("Failed to add wallet. Check the address and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function connectSolanaWallet() {
+    if (!userId) {
+      setError("Registration not complete. Please restart the app.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const authResult = await transact(async (wallet) => {
+        return await wallet.authorize({
+          identity: { name: "REFLEX" },
+          chain: "solana:mainnet",
+        });
+      });
+
+      const account = authResult.accounts[0];
+      if (!account) {
+        setError("No account returned by wallet.");
+        return;
+      }
+
+      // Account is a union: WalletAccount (Wallet Standard) has `publicKey` as raw bytes
+      // and `address` already as base58. Legacy MWA account has `address` as base64 bytes.
+      let base58Address: string;
+      if ("publicKey" in account) {
+        // Wallet Standard path — address is already base58
+        base58Address = account.address;
+      } else {
+        // Legacy MWA path — address is base64-encoded public key bytes
+        const pubkeyBytes = new Uint8Array(Buffer.from(account.address, "base64"));
+        base58Address = bs58.encode(pubkeyBytes);
+      }
+
+      const created = await createWallet(
+        userId,
+        base58Address,
+        "solana",
+        label.trim() || undefined
+      );
+      addWallet(created);
+      router.back();
+    } catch (err) {
+      if (err instanceof SolanaMobileWalletAdapterError) {
+        if (err.code === SolanaMobileWalletAdapterErrorCode.ERROR_WALLET_NOT_FOUND) {
+          setError("No Solana wallet found. Install Phantom or Solflare.");
+        } else if (err.code === SolanaMobileWalletAdapterErrorCode.ERROR_ASSOCIATION_CANCELLED) {
+          // user dismissed — no error shown
+        } else {
+          setError("Wallet connection failed. Try again.");
+        }
+      } else {
+        setError("Failed to add wallet. Try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -169,6 +234,43 @@ export default function ConnectWallet() {
               <View style={[styles.dividerLine, { backgroundColor: colors.borderSubtle }]} />
             </View>
           </>
+        )}
+
+        {/* Mobile Wallet Adapter — Solana on Android only */}
+        {chainFamily === "solana" && Platform.OS === "android" && (
+          <>
+            <Pressable
+              style={[styles.wcButton, {
+                backgroundColor: colors.accentSoft,
+                borderColor: colors.accent,
+              }]}
+              onPress={connectSolanaWallet}
+              disabled={loading}
+            >
+              <MaterialCommunityIcons name="wallet-outline" size={18} color={colors.accent} />
+              <Text style={[styles.wcButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+                Connect Solana Wallet
+              </Text>
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.borderSubtle }]} />
+              <Text style={[styles.dividerText, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+                or paste address
+              </Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.borderSubtle }]} />
+            </View>
+          </>
+        )}
+
+        {/* iOS info note — MWA not supported */}
+        {chainFamily === "solana" && Platform.OS === "ios" && (
+          <View style={[styles.iosNote, { backgroundColor: colors.bgSecondary, borderColor: colors.borderSubtle }]}>
+            <MaterialCommunityIcons name="information-outline" size={15} color={colors.textTertiary} />
+            <Text style={[styles.iosNoteText, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+              Wallet connection is Android-only. Paste your Solana address below.
+            </Text>
+          </View>
         )}
 
         {/* Address input */}
@@ -313,6 +415,21 @@ const styles = StyleSheet.create({
   dividerText: {
     fontSize: FontSize.caption,
     letterSpacing: 0.2,
+  },
+  iosNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    marginTop: Spacing.sm,
+  },
+  iosNoteText: {
+    flex: 1,
+    fontSize: FontSize.caption,
+    lineHeight: 18,
   },
   input: {
     borderRadius: Radius.card,

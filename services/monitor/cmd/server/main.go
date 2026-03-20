@@ -48,12 +48,31 @@ func main() {
 	heliusKey := os.Getenv("HELIUS_API_KEY")
 	coingeckoKey := os.Getenv("COINGECKO_API_KEY")
 
-	evmRPCURLs := map[int]string{
-		1:     fmt.Sprintf("https://eth-mainnet.g.alchemy.com/v2/%s", alchemyKey),
-		8453:  fmt.Sprintf("https://base-mainnet.g.alchemy.com/v2/%s", alchemyKey),
-		42161: fmt.Sprintf("https://arb-mainnet.g.alchemy.com/v2/%s", alchemyKey),
+	// Build EVM RPC URLs — fall back to public LlamaNodes endpoints if no Alchemy key.
+	var evmRPCURLs map[int]string
+	if alchemyKey != "" {
+		evmRPCURLs = map[int]string{
+			1:     fmt.Sprintf("https://eth-mainnet.g.alchemy.com/v2/%s", alchemyKey),
+			8453:  fmt.Sprintf("https://base-mainnet.g.alchemy.com/v2/%s", alchemyKey),
+			42161: fmt.Sprintf("https://arb-mainnet.g.alchemy.com/v2/%s", alchemyKey),
+		}
+	} else {
+		log.Println("ALCHEMY_API_KEY not set — using public RPC endpoints (rate-limited)")
+		evmRPCURLs = map[int]string{
+			1:     "https://eth.llamarpc.com",
+			8453:  "https://base.llamarpc.com",
+			42161: "https://arb1.llamarpc.com",
+		}
 	}
-	heliusURL := fmt.Sprintf("https://mainnet.helius-rpc.com/?api-key=%s", heliusKey)
+
+	// Build Solana RPC URL — fall back to public mainnet-beta endpoint if no Helius key.
+	var heliusURL string
+	if heliusKey != "" {
+		heliusURL = fmt.Sprintf("https://mainnet.helius-rpc.com/?api-key=%s", heliusKey)
+	} else {
+		log.Println("HELIUS_API_KEY not set — using public Solana RPC endpoint (rate-limited)")
+		heliusURL = "https://api.mainnet-beta.solana.com"
+	}
 
 	priceClient := prices.NewClient(coingeckoKey)
 	aaveClient := aave.NewClient(evmRPCURLs)
