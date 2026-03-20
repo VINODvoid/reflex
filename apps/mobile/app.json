@@ -7,13 +7,23 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "privacy": "unlisted",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0B0A08"
+    },
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#D4A843"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kalkikal.reflex",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,19 +33,22 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kalkikal.reflex"
+      "package": "com.kalkikal.reflex",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-notifications"
     ],
     "extra": {
       "router": {},
       "eas": {
         "projectId": "c7e1d52f-4da2-4d55-972b-34f70370657d"
-      }
+      },
+      "privacyPolicyUrl": "https://reflexapp.io/privacy"
     },
     "owner": "kalki-kal"
   }

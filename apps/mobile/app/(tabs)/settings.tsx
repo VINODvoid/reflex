@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { GradientBackground } from "../../components/GradientBackground";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -21,6 +21,7 @@ import {
   Radius,
 } from "../../design-system/tokens";
 import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
+import { AppHeader } from "../../components/AppHeader";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "light", label: "Light" },
@@ -104,17 +105,14 @@ export default function Settings() {
   }
 
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
+    <GradientBackground edges={["top"]}>
       <StatusBar style={isDark ? "light" : "dark"} />
+      <AppHeader />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.container, { backgroundColor: colors.bgPrimary }]}
+        contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.heading, { color: colors.textPrimary, fontFamily: FontFamily.heading }]}>
-          Settings
-        </Text>
-
         {/* ── Appearance ── */}
         <SectionLabel label="APPEARANCE" colors={colors} />
         <View style={styles.themeCardRow}>
@@ -262,13 +260,12 @@ export default function Settings() {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </GradientBackground>
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-// Renders one full mockup using a given palette
 function MockupContent({ p }: { p: typeof PREVIEW.light }) {
   return (
     <View style={[previewStyles.mockup, { backgroundColor: p.bg }]}>
@@ -323,21 +320,14 @@ function ThemePreviewCard({
         previewStyles.cardInner,
         { borderColor: active ? accentColor : borderSubtle, borderWidth: active ? 2 : 1 },
       ]}>
-
         {isSystem ? (
-          // Split: left half = light mockup, right half = dark mockup
           <View style={previewStyles.splitContainer}>
-            {/* Left half — light */}
             <View style={previewStyles.splitHalf}>
               <View style={previewStyles.splitInnerLeft}>
                 <MockupContent p={PREVIEW.light} />
               </View>
             </View>
-
-            {/* Divider */}
             <View style={previewStyles.splitDivider} />
-
-            {/* Right half — dark */}
             <View style={previewStyles.splitHalf}>
               <View style={previewStyles.splitInnerRight}>
                 <MockupContent p={PREVIEW.dark} />
@@ -366,116 +356,40 @@ function ThemePreviewCard({
 }
 
 const previewStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    alignItems: "center",
-    gap: 8,
-  },
-  cardInner: {
-    width: "100%",
-    borderRadius: 12,
-    overflow: "hidden",
-    position: "relative",
-  },
-  mockup: {
-    width: "100%",
-    height: 148,
-    flexDirection: "column",
-  },
-  // System split
-  splitContainer: {
-    flexDirection: "row",
-    height: 148,
-  },
-  splitHalf: {
-    flex: 1,
-    overflow: "hidden",
-  },
-  // Each half renders the full mockup at 2× width, then shifts left/right to show only its half
-  splitInnerLeft: {
-    width: "200%",
-  },
-  splitInnerRight: {
-    width: "200%",
-    marginLeft: "-100%",
-  },
-  splitDivider: {
-    width: 1,
-    backgroundColor: "rgba(128,100,40,0.3)",
-    zIndex: 2,
-  },
+  card: { flex: 1, alignItems: "center", gap: 8 },
+  cardInner: { width: "100%", borderRadius: 12, overflow: "hidden", position: "relative" },
+  mockup: { width: "100%", height: 148, flexDirection: "column" },
+  splitContainer: { flexDirection: "row", height: 148 },
+  splitHalf: { flex: 1, overflow: "hidden" },
+  splitInnerLeft: { width: "200%" },
+  splitInnerRight: { width: "200%", marginLeft: "-100%" },
+  splitDivider: { width: 1, backgroundColor: "rgba(128,100,40,0.3)", zIndex: 2 },
   mockHeader: {
-    height: 26,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
+    height: 26, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", paddingHorizontal: 8, borderBottomWidth: 1,
   },
-  mockHeaderTitle: {
-    height: 7,
-    width: 40,
-    borderRadius: 3,
-    opacity: 0.9,
-  },
-  mockHeaderDot: {
-    height: 7,
-    width: 14,
-    borderRadius: 3,
-  },
-  mockBody: {
-    flex: 1,
-    paddingHorizontal: 6,
-    paddingTop: 6,
-    gap: 5,
-  },
-  mockCard: {
-    borderRadius: 6,
-    borderWidth: 1,
-    padding: 6,
-  },
-  mockLine: {
-    height: 5,
-    borderRadius: 2.5,
-  },
+  mockHeaderTitle: { height: 7, width: 40, borderRadius: 3, opacity: 0.9 },
+  mockHeaderDot: { height: 7, width: 14, borderRadius: 3 },
+  mockBody: { flex: 1, paddingHorizontal: 6, paddingTop: 6, gap: 5 },
+  mockCard: { borderRadius: 6, borderWidth: 1, padding: 6 },
+  mockLine: { height: 5, borderRadius: 2.5 },
   mockTabBar: {
-    height: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
+    height: 24, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-around", paddingHorizontal: 10, borderTopWidth: 1,
   },
-  mockTabDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    opacity: 0.85,
-  },
+  mockTabDot: { width: 14, height: 14, borderRadius: 3, opacity: 0.85 },
   checkBadge: {
-    position: "absolute",
-    bottom: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    position: "absolute", bottom: 8, right: 8, width: 20, height: 20,
+    borderRadius: 10, alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2, shadowRadius: 3, elevation: 3,
   },
-  cardLabel: {
-    fontSize: FontSize.label,
-    letterSpacing: 0.2,
-  },
+  cardLabel: { fontSize: FontSize.label, letterSpacing: 0.2 },
 });
 
 function SectionLabel({ label, colors }: { label: string; colors: ReturnType<typeof import("../../design-system/tokens").useColors> }) {
   return (
-    <Text style={[styles.sectionLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+    <Text style={[styles.sectionLabel, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
       {label}
     </Text>
   );
@@ -528,14 +442,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: 108,
   },
-  heading: {
-    fontSize: FontSize.h2,
-    letterSpacing: -0.4,
-    marginBottom: Spacing.lg,
-  },
   sectionLabel: {
     fontSize: FontSize.label,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     marginBottom: Spacing.sm,
     marginTop: Spacing.md,
   },
@@ -549,18 +458,16 @@ const styles = StyleSheet.create({
     height: 1,
     marginHorizontal: -Spacing.md,
   },
-  // Appearance — preview cards
   themeCardRow: {
     flexDirection: "row",
     gap: 10,
     marginBottom: 4,
   },
-  // Notifications / rows
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    paddingVertical: 18,
     gap: Spacing.md,
   },
   disabledRow: {
@@ -581,7 +488,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.bodySmall,
     flexShrink: 1,
   },
-  // Monitoring
   intervalHeader: {
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
@@ -594,7 +500,7 @@ const styles = StyleSheet.create({
   },
   intervalChip: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: Radius.sharp,
     borderWidth: 1,
     alignItems: "center",
@@ -602,7 +508,6 @@ const styles = StyleSheet.create({
   intervalChipText: {
     fontSize: FontSize.label,
   },
-  // Footer
   footer: {
     marginTop: Spacing.lg,
     marginBottom: Spacing.md,

@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import {
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
   Animated,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { GradientBackground } from "../../components/GradientBackground";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -117,24 +118,15 @@ export default function ConnectWallet() {
         return;
       }
 
-      // Account is a union: WalletAccount (Wallet Standard) has `publicKey` as raw bytes
-      // and `address` already as base58. Legacy MWA account has `address` as base64 bytes.
       let base58Address: string;
       if ("publicKey" in account) {
-        // Wallet Standard path — address is already base58
         base58Address = account.address;
       } else {
-        // Legacy MWA path — address is base64-encoded public key bytes
         const pubkeyBytes = new Uint8Array(Buffer.from(account.address, "base64"));
         base58Address = bs58.encode(pubkeyBytes);
       }
 
-      const created = await createWallet(
-        userId,
-        base58Address,
-        "solana",
-        label.trim() || undefined
-      );
+      const created = await createWallet(userId, base58Address, "solana", label.trim() || undefined);
       addWallet(created);
       router.back();
     } catch (err) {
@@ -142,7 +134,7 @@ export default function ConnectWallet() {
         if (err.code === SolanaMobileWalletAdapterErrorCode.ERROR_WALLET_NOT_FOUND) {
           setError("No Solana wallet found. Install Phantom or Solflare.");
         } else if (err.code === SolanaMobileWalletAdapterErrorCode.ERROR_ASSOCIATION_CANCELLED) {
-          // user dismissed — no error shown
+          // user dismissed — silent
         } else {
           setError("Wallet connection failed. Try again.");
         }
@@ -160,13 +152,17 @@ export default function ConnectWallet() {
   ];
 
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
+    <GradientBackground>
       <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.borderSubtle }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={28} color={colors.textPrimary} />
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={26} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.heading, { color: colors.textPrimary, fontFamily: FontFamily.heading }]}>
           Add Wallet
@@ -174,10 +170,14 @@ export default function ConnectWallet() {
         <View style={styles.backBtn} />
       </View>
 
-      <View style={styles.body}>
-
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Chain selector */}
-        <Text style={[styles.fieldLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+        <Text style={[styles.fieldLabel, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
           NETWORK
         </Text>
         <View style={styles.chainRow}>
@@ -186,21 +186,25 @@ export default function ConnectWallet() {
             return (
               <Pressable
                 key={c.id}
-                style={[styles.chainChip, {
-                  backgroundColor: active ? colors.accentSoft : colors.bgSecondary,
-                  borderColor: active ? colors.accent : colors.border,
-                  flex: 1,
-                }]}
+                style={({ pressed }) => [
+                  styles.chainBtn,
+                  {
+                    backgroundColor: active ? colors.accentSoft : colors.bgSecondary,
+                    borderColor: active ? colors.accent : colors.border,
+                    opacity: pressed ? 0.85 : 1,
+                    flex: 1,
+                  },
+                ]}
                 onPress={() => setChainFamily(c.id)}
               >
                 <MaterialCommunityIcons
                   name={c.icon as any}
-                  size={18}
+                  size={20}
                   color={active ? colors.accent : colors.textTertiary}
                 />
                 <Text style={[styles.chainLabel, {
                   color: active ? colors.accent : colors.textSecondary,
-                  fontFamily: FontFamily.semibold,
+                  fontFamily: active ? FontFamily.semibold : FontFamily.body,
                 }]}>
                   {c.label}
                 </Text>
@@ -209,19 +213,23 @@ export default function ConnectWallet() {
           })}
         </View>
 
-        {/* WalletConnect button — EVM only */}
+        {/* WalletConnect — EVM */}
         {chainFamily === "evm" && (
           <>
             <Pressable
-              style={[styles.wcButton, {
-                backgroundColor: colors.accentSoft,
-                borderColor: colors.accent,
-              }]}
+              style={({ pressed }) => [
+                styles.connectBtn,
+                {
+                  backgroundColor: colors.accentSoft,
+                  borderColor: colors.accent,
+                  opacity: (loading || pressed) ? 0.75 : 1,
+                },
+              ]}
               onPress={() => open({ view: "Connect" })}
               disabled={loading}
             >
-              <MaterialCommunityIcons name="wallet-outline" size={18} color={colors.accent} />
-              <Text style={[styles.wcButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+              <MaterialCommunityIcons name="wallet-outline" size={20} color={colors.accent} />
+              <Text style={[styles.connectBtnText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
                 Connect with WalletConnect
               </Text>
             </Pressable>
@@ -236,19 +244,23 @@ export default function ConnectWallet() {
           </>
         )}
 
-        {/* Mobile Wallet Adapter — Solana on Android only */}
+        {/* Solana Mobile Wallet Adapter — Android only */}
         {chainFamily === "solana" && Platform.OS === "android" && (
           <>
             <Pressable
-              style={[styles.wcButton, {
-                backgroundColor: colors.accentSoft,
-                borderColor: colors.accent,
-              }]}
+              style={({ pressed }) => [
+                styles.connectBtn,
+                {
+                  backgroundColor: colors.accentSoft,
+                  borderColor: colors.accent,
+                  opacity: (loading || pressed) ? 0.75 : 1,
+                },
+              ]}
               onPress={connectSolanaWallet}
               disabled={loading}
             >
-              <MaterialCommunityIcons name="wallet-outline" size={18} color={colors.accent} />
-              <Text style={[styles.wcButtonText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+              <MaterialCommunityIcons name="wallet-outline" size={20} color={colors.accent} />
+              <Text style={[styles.connectBtnText, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
                 Connect Solana Wallet
               </Text>
             </Pressable>
@@ -263,18 +275,18 @@ export default function ConnectWallet() {
           </>
         )}
 
-        {/* iOS info note — MWA not supported */}
+        {/* iOS note */}
         {chainFamily === "solana" && Platform.OS === "ios" && (
-          <View style={[styles.iosNote, { backgroundColor: colors.bgSecondary, borderColor: colors.borderSubtle }]}>
+          <View style={[styles.infoNote, { backgroundColor: colors.bgSecondary, borderColor: colors.borderSubtle }]}>
             <MaterialCommunityIcons name="information-outline" size={15} color={colors.textTertiary} />
-            <Text style={[styles.iosNoteText, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+            <Text style={[styles.infoNoteText, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
               Wallet connection is Android-only. Paste your Solana address below.
             </Text>
           </View>
         )}
 
         {/* Address input */}
-        <Text style={[styles.fieldLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
+        <Text style={[styles.fieldLabel, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
           WALLET ADDRESS
         </Text>
         <TextInput
@@ -294,9 +306,12 @@ export default function ConnectWallet() {
           multiline={false}
         />
 
-        {/* Optional label */}
-        <Text style={[styles.fieldLabel, { color: colors.textTertiary, fontFamily: FontFamily.semibold }]}>
-          LABEL <Text style={{ color: colors.textTertiary, fontFamily: FontFamily.body }}>— optional</Text>
+        {/* Label input */}
+        <Text style={[styles.fieldLabel, { color: colors.accent, fontFamily: FontFamily.semibold }]}>
+          LABEL{" "}
+          <Text style={{ color: colors.textTertiary, fontFamily: FontFamily.body, letterSpacing: 0 }}>
+            — optional
+          </Text>
         </Text>
         <TextInput
           style={[styles.input, {
@@ -313,23 +328,26 @@ export default function ConnectWallet() {
           autoCorrect={false}
         />
 
-        {/* Error */}
         {error && (
           <Text style={[styles.error, { color: colors.danger, fontFamily: FontFamily.body }]}>
             {error}
           </Text>
         )}
 
-        {/* Hint */}
         <Text style={[styles.hint, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
           Read-only — no private keys required.
         </Text>
 
         {/* CTA */}
-        <Pressable onPressIn={onPressIn} onPressOut={onPressOut} onPress={handleAdd} disabled={loading}>
+        <Pressable
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          onPress={handleAdd}
+          disabled={loading}
+        >
           <Animated.View style={[styles.ctaBtn, {
             backgroundColor: colors.accent,
-            opacity: loading ? 0.7 : 1,
+            opacity: loading ? 0.65 : 1,
             transform: [{ scale: btnScale }],
           }]}>
             <Text style={[styles.ctaText, { fontFamily: FontFamily.semibold }]}>
@@ -337,9 +355,8 @@ export default function ConnectWallet() {
             </Text>
           </Animated.View>
         </Pressable>
-
-      </View>
-    </SafeAreaView>
+      </ScrollView>
+    </GradientBackground>
   );
 }
 
@@ -349,13 +366,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     height: 56,
-    borderBottomWidth: 1,
   },
   backBtn: {
-    width: 40,
-    alignItems: "flex-start",
+    width: 36,
+    height: 36,
+    alignItems: "center",
     justifyContent: "center",
   },
   heading: {
@@ -363,43 +380,43 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   body: {
-    flex: 1,
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: 48,
     gap: Spacing.sm,
   },
   fieldLabel: {
     fontSize: FontSize.label,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     marginTop: Spacing.sm,
   },
   chainRow: {
     flexDirection: "row",
     gap: Spacing.sm,
   },
-  chainChip: {
+  chainBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
+    gap: 8,
+    paddingVertical: 16,
     borderRadius: Radius.card,
     borderWidth: 1,
   },
   chainLabel: {
     fontSize: FontSize.bodySmall,
   },
-  wcButton: {
+  connectBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: Radius.card,
     borderWidth: 1,
-    marginTop: Spacing.sm,
+    marginTop: 4,
   },
-  wcButtonText: {
+  connectBtnText: {
     fontSize: FontSize.bodySmall,
   },
   dividerRow: {
@@ -416,17 +433,17 @@ const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     letterSpacing: 0.2,
   },
-  iosNote: {
+  infoNote: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 6,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: Radius.card,
     borderWidth: 1,
-    marginTop: Spacing.sm,
+    marginTop: 4,
   },
-  iosNoteText: {
+  infoNoteText: {
     flex: 1,
     fontSize: FontSize.caption,
     lineHeight: 18,
@@ -435,7 +452,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
+    paddingVertical: 16,
     fontSize: FontSize.bodySmall,
   },
   error: {
@@ -455,7 +472,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   ctaText: {
-    color: "#FFFFFF",
+    color: "#0B0A08",
     fontSize: FontSize.body,
     letterSpacing: 0.3,
   },

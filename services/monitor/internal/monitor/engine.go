@@ -106,6 +106,10 @@ func (e *Engine) pollWallet(ctx context.Context, w storage.WalletWithRules) {
 	defer cancel()
 
 	positions := e.fetchPositions(ctx, w)
+	log.Printf("engine: wallet %s (%s) — %d position(s) found", w.WalletID[:8], w.ChainFamily, len(positions))
+	for _, p := range positions {
+		log.Printf("engine:   protocol=%s chainId=%d hf=%.4f", p.Protocol, p.ChainID, p.HealthFactor)
+	}
 
 	if err := storage.UpsertPositions(ctx, e.db, positions); err != nil {
 		// Log but continue — stale cache is not fatal for alerting.
@@ -114,9 +118,18 @@ func (e *Engine) pollWallet(ctx context.Context, w storage.WalletWithRules) {
 
 	// Seed price_change rules that have no baseline yet — do not pass to Evaluate.
 	currentPrices := e.seedAndFetchPrices(ctx, w.Rules)
+	if len(currentPrices) > 0 {
+		for addr, price := range currentPrices {
+			log.Printf("engine:   price %s = $%.4f", addr[:min(8, len(addr))], price)
+		}
+	} else {
+		log.Printf("engine:   no current prices fetched (price_change rules may be seeding or fetch failed)")
+	}
 
 	triggered := alerts.Evaluate(w.Rules, positions, currentPrices)
+	log.Printf("engine: wallet %s — %d rule(s), %d triggered", w.WalletID[:8], len(w.Rules), len(triggered))
 	for _, t := range triggered {
+		log.Printf("engine:   FIRING: %s", t.Message)
 		e.fireAlert(ctx, t, w.UserID)
 	}
 }
@@ -273,8 +286,10 @@ func (e *Engine) fireAlert(ctx context.Context, t alerts.TriggeredRule, userID s
 		return
 	}
 	if token == "" {
+		log.Printf("engine: no push token for user %s — notification skipped (run app on physical device)", userID)
 		return
 	}
+	log.Printf("engine: sending push to token %s…", token[:min(20, len(token))])
 
 	tickets, err := e.pushClient.SendPush(ctx, []notifications.PushMessage{{
 		To:    token,

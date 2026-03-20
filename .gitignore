@@ -5,6 +5,7 @@
 
 # ── Go ───────────────────────────────────────────────────────
 services/monitor/bin/
+services/monitor/server
 services/monitor/*.exe
 services/monitor/*.test
 services/monitor/vendor/

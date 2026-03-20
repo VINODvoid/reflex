@@ -1,52 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { Tabs, router } from "expo-router";
+import { Tabs } from "expo-router";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { registerForPushNotifications } from "../../services/notifications";
-import { registerUser, getWallets } from "../../services/api";
+import { registerUser, updatePushToken, getWallets } from "../../services/api";
 import { useStore } from "../../store";
-import { FontFamily, FontSize, Radius } from "../../design-system/tokens";
+import { FontFamily } from "../../design-system/tokens";
 import { STORAGE_KEYS } from "../../constants/storageKeys";
-import { useThemeColors, useIsDark } from "../../hooks/useThemeColors";
+import { useThemeColors } from "../../hooks/useThemeColors";
 import { useNotificationDeepLink } from "../../hooks/useNotificationDeepLink";
 
-// ── Tab config ───────────────────────────────────────────────────────────────
+// ── Tab config ────────────────────────────────────────────────────────────────
 
 const TAB_ROUTES = [
-  { name: "index",    label: "Positions", icon: "view-dashboard",  iconOut: "view-dashboard-outline" },
-  { name: "wallets",  label: "Wallets",   icon: "wallet",          iconOut: "wallet-outline" },
-  { name: "alerts",   label: "Alerts",    icon: "bell",            iconOut: "bell-outline" },
-  { name: "settings", label: "Settings",  icon: "cog",             iconOut: "cog-outline" },
+  { name: "wallets",  label: "Wallets",   icon: "wallet",         iconOut: "wallet-outline" },
+  { name: "index",    label: "Positions", icon: "view-dashboard", iconOut: "view-dashboard-outline" },
+  { name: "alerts",   label: "Alerts",    icon: "bell",           iconOut: "bell-outline" },
+  { name: "settings", label: "Settings",  icon: "tune-variant",   iconOut: "tune-variant" },
 ] as const;
 
-// ── Custom floating tab bar ──────────────────────────────────────────────────
+// ── Tab bar ───────────────────────────────────────────────────────────────────
 
-function PremiumTabBar({ state, navigation }: BottomTabBarProps) {
+function LuxuryTabBar({ state, navigation }: BottomTabBarProps) {
   const colors = useThemeColors();
-  const isDark = useIsDark();
-  const [barWidth, setBarWidth] = useState(0);
-  const tabWidth = barWidth > 0 ? barWidth / state.routes.length : 0;
-
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
   const scaleAnims = useRef(state.routes.map(() => new Animated.Value(1))).current;
 
-  useEffect(() => {
-    if (tabWidth === 0) return;
-    Animated.spring(slideAnim, {
-      toValue: state.index * tabWidth,
-      useNativeDriver: true,
-      tension: 180,
-      friction: 14,
-    }).start();
-  }, [state.index, tabWidth]);
-
   function handlePress(index: number, routeName: string) {
-    // Bounce the pressed icon
     Animated.sequence([
       Animated.timing(scaleAnims[index], { toValue: 0.82, duration: 80, useNativeDriver: true }),
-      Animated.spring(scaleAnims[index], { toValue: 1, tension: 200, friction: 10, useNativeDriver: true }),
+      Animated.spring(scaleAnims[index], { toValue: 1, tension: 300, friction: 12, useNativeDriver: true }),
     ]).start();
 
     const event = navigation.emit({ type: "tabPress", target: routeName, canPreventDefault: true });
@@ -56,120 +42,86 @@ function PremiumTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   return (
-    <View style={styles.outerWrap} pointerEvents="box-none">
-      <View
-        style={[
-          styles.bar,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.borderSubtle,
-            shadowColor: isDark ? "#000" : "#8B6914",
-          },
-        ]}
-        onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
-      >
-        {/* Sliding active pill */}
-        {tabWidth > 0 && (
-          <Animated.View
-            style={[
-              styles.activePill,
-              {
-                width: tabWidth - 8,
-                backgroundColor: colors.accentSoft,
-                borderColor: colors.accent,
-                transform: [{ translateX: Animated.add(slideAnim, new Animated.Value(4)) }],
-              },
-            ]}
-          />
-        )}
+    <View
+      style={[
+        styles.bar,
+        {
+          backgroundColor: colors.bgSecondary,
+          borderTopColor: colors.borderSubtle,
+          paddingBottom: Math.max(insets.bottom, 8),
+        },
+      ]}
+    >
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const tab = TAB_ROUTES.find((t) => t.name === route.name);
+        if (!tab) return null;
 
-        {/* Tab items */}
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
-          const tab = TAB_ROUTES.find((t) => t.name === route.name);
-          if (!tab) return null;
+        return (
+          <Pressable
+            key={route.key}
+            style={styles.tabItem}
+            onPress={() => handlePress(index, route.name)}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: focused }}
+          >
+            {/* Active indicator — thin gold line at top of tab */}
+            <View style={[styles.indicator, focused && { backgroundColor: colors.accent }]} />
 
-          return (
-            <Pressable
-              key={route.key}
-              style={styles.tabItem}
-              onPress={() => handlePress(index, route.name)}
-              hitSlop={4}
+            <Animated.View style={{ transform: [{ scale: scaleAnims[index] }] }}>
+              <MaterialCommunityIcons
+                name={(focused ? tab.icon : tab.iconOut) as any}
+                size={22}
+                color={focused ? colors.accent : colors.textTertiary}
+              />
+            </Animated.View>
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: focused ? colors.accent : colors.textTertiary,
+                  fontFamily: focused ? FontFamily.semibold : FontFamily.body,
+                  opacity: focused ? 1 : 0.45,
+                },
+              ]}
+              numberOfLines={1}
             >
-              <Animated.View style={[styles.tabInner, { transform: [{ scale: scaleAnims[index] }] }]}>
-                <MaterialCommunityIcons
-                  name={(focused ? tab.icon : tab.iconOut) as any}
-                  size={22}
-                  color={focused ? colors.accent : colors.textTertiary}
-                />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    {
-                      color: focused ? colors.accent : colors.textTertiary,
-                      fontFamily: focused ? FontFamily.semibold : FontFamily.body,
-                      opacity: focused ? 1 : 0.7,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {tab.label}
-                </Text>
-              </Animated.View>
-            </Pressable>
-          );
-        })}
-      </View>
+              {tab.label.toUpperCase()}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  outerWrap: {
-    position: "absolute",
-    bottom: 20,
-    left: 16,
-    right: 16,
-  },
   bar: {
     flexDirection: "row",
-    borderRadius: 22,
-    borderWidth: 1,
-    height: 68,
-    paddingVertical: 0,
-    alignItems: "center",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 16,
-    position: "relative",
-    overflow: "hidden",
-  },
-  activePill: {
-    position: "absolute",
-    top: 4,
-    bottom: 4,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   tabItem: {
     flex: 1,
-    height: "100%",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  tabInner: {
-    alignItems: "center",
-    justifyContent: "center",
+    paddingBottom: 4,
     gap: 3,
   },
+  indicator: {
+    width: 20,
+    height: 2,
+    borderRadius: 1,
+    marginBottom: 8,
+    backgroundColor: "transparent",
+  },
   tabLabel: {
-    fontSize: 10,
-    letterSpacing: 0.2,
+    fontSize: 9,
+    letterSpacing: 0.7,
   },
 });
 
-// ── Layout ───────────────────────────────────────────────────────────────────
+// ── Layout ────────────────────────────────────────────────────────────────────
 
 export default function TabLayout() {
   const setUserId = useStore((state) => state.setUserId);
@@ -181,15 +133,24 @@ export default function TabLayout() {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEYS.USER_ID);
+        const token = await registerForPushNotifications();
+
         if (stored) {
           setUserId(stored);
           const wallets = await getWallets(stored);
           setWallets(wallets);
+          // Refresh push token in case it changed or was previously a fake/missing token
+          if (token) {
+            await updatePushToken(stored, token).catch(() => {});
+          }
           return;
         }
-        const token = await registerForPushNotifications();
-        const fallback = `no-push-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const { id } = await registerUser(token ?? fallback);
+
+        // First boot — register. Only proceed if we have a real push token.
+        if (!token) {
+          console.warn("Push notifications permission denied — alerts will not fire.");
+        }
+        const { id } = await registerUser(token ?? "");
         await AsyncStorage.setItem(STORAGE_KEYS.USER_ID, id);
         setUserId(id);
       } catch (e) {
@@ -200,11 +161,11 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      tabBar={(props) => <PremiumTabBar {...props} />}
+      tabBar={(props) => <LuxuryTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen name="index" />
       <Tabs.Screen name="wallets" />
+      <Tabs.Screen name="index" />
       <Tabs.Screen name="alerts" />
       <Tabs.Screen name="settings" />
     </Tabs>

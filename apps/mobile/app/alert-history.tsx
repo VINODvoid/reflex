@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { GradientBackground } from "../components/GradientBackground";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -39,13 +39,17 @@ export default function AlertHistoryScreen() {
   }, [userId]);
 
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
+    <GradientBackground>
       <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.borderSubtle }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={28} color={colors.textPrimary} />
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={26} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.heading, { color: colors.textPrimary, fontFamily: FontFamily.heading }]}>
           Alert History
@@ -53,7 +57,7 @@ export default function AlertHistoryScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <View style={[styles.container, { backgroundColor: colors.bgPrimary }]}>
+      <View style={styles.container}>
         {loading ? (
           <View style={styles.centeredState}>
             <Text style={[styles.stateText, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
@@ -68,6 +72,9 @@ export default function AlertHistoryScreen() {
           </View>
         ) : events.length === 0 ? (
           <View style={styles.centeredState}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.bgSecondary, borderColor: colors.borderSubtle }]}>
+              <MaterialCommunityIcons name="bell-check-outline" size={28} color={colors.textTertiary} />
+            </View>
             <Text style={[styles.emptyTitle, { color: colors.textSecondary, fontFamily: FontFamily.semibold }]}>
               No alerts fired yet
             </Text>
@@ -85,7 +92,7 @@ export default function AlertHistoryScreen() {
           />
         )}
       </View>
-    </SafeAreaView>
+    </GradientBackground>
   );
 }
 
@@ -96,25 +103,22 @@ function EventCard({ event }: { event: AlertEvent }) {
   const timeStr = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <View style={[styles.card, {
-      backgroundColor: colors.surface,
-      borderColor: colors.borderSubtle,
-      borderLeftColor: colors.danger,
-    }]}>
-      <View style={styles.cardHeader}>
-        <View style={[styles.alertDot, { backgroundColor: colors.danger }]} />
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
+      {/* Left danger accent line */}
+      <View style={[styles.cardAccent, { backgroundColor: colors.danger }]} />
+      <View style={styles.cardContent}>
         <Text style={[styles.cardMessage, { color: colors.textPrimary, fontFamily: FontFamily.semibold }]}
           numberOfLines={2}>
           {event.message}
         </Text>
-      </View>
-      <View style={styles.cardFooter}>
-        <Text style={[styles.cardValue, { color: colors.danger, fontFamily: FontFamily.monoSemibold }]}>
-          HF {event.valueAtTrigger.toFixed(2)}
-        </Text>
-        <Text style={[styles.cardTime, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
-          {dateStr} · {timeStr}
-        </Text>
+        <View style={styles.cardFooter}>
+          <Text style={[styles.cardValue, { color: colors.danger, fontFamily: FontFamily.monoSemibold }]}>
+            HF {event.valueAtTrigger.toFixed(2)}
+          </Text>
+          <Text style={[styles.cardTime, { color: colors.textTertiary, fontFamily: FontFamily.body }]}>
+            {dateStr} · {timeStr}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -126,13 +130,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     height: 56,
-    borderBottomWidth: 1,
   },
   backBtn: {
-    width: 40,
-    alignItems: "flex-start",
+    width: 36,
+    height: 36,
+    alignItems: "center",
     justifyContent: "center",
   },
   heading: {
@@ -149,10 +153,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingBottom: 80,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   stateText: {
     fontSize: FontSize.bodySmall,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xs,
   },
   emptyTitle: {
     fontSize: FontSize.h4,
@@ -169,26 +182,25 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   card: {
+    flexDirection: "row",
     borderRadius: Radius.card,
     borderWidth: 1,
-    borderLeftWidth: 3,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  cardAccent: {
+    width: 3,
+  },
+  cardContent: {
+    flex: 1,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-  },
-  alertDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginTop: 5,
-    flexShrink: 0,
-  },
   cardMessage: {
-    flex: 1,
     fontSize: FontSize.bodySmall,
     lineHeight: 20,
   },

@@ -55,6 +55,8 @@ func main() {
 			1:     fmt.Sprintf("https://eth-mainnet.g.alchemy.com/v2/%s", alchemyKey),
 			8453:  fmt.Sprintf("https://base-mainnet.g.alchemy.com/v2/%s", alchemyKey),
 			42161: fmt.Sprintf("https://arb-mainnet.g.alchemy.com/v2/%s", alchemyKey),
+			137:   fmt.Sprintf("https://polygon-mainnet.g.alchemy.com/v2/%s", alchemyKey),
+			10:    fmt.Sprintf("https://opt-mainnet.g.alchemy.com/v2/%s", alchemyKey),
 		}
 	} else {
 		log.Println("ALCHEMY_API_KEY not set — using public RPC endpoints (rate-limited)")
@@ -62,6 +64,8 @@ func main() {
 			1:     "https://eth.llamarpc.com",
 			8453:  "https://base.llamarpc.com",
 			42161: "https://arb1.llamarpc.com",
+			137:   "https://polygon.llamarpc.com",
+			10:    "https://optimism.llamarpc.com",
 		}
 	}
 
@@ -106,6 +110,7 @@ func main() {
 
 	h := api.NewHandler(db)
 	router.Post("/users", h.RegisterUser)
+	router.Put("/users/{userId}/token", h.UpdatePushToken)
 	router.Post("/wallets", h.CreateWallet)
 	router.Get("/wallets/{userId}", h.GetWallets)
 

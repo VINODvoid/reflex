@@ -22,6 +22,18 @@ export async function registerUser(
   return res.json();
 }
 
+export async function updatePushToken(
+  userId: string,
+  expoPushToken: string,
+): Promise<void> {
+  const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/users/${userId}/token`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expoPushToken }),
+  });
+  if (!res.ok) throw new Error("failed to update push token");
+}
+
 export async function createWallet(
   userId: string,
   address: string,

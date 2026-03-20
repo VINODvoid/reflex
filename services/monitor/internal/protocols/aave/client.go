@@ -20,10 +20,15 @@ var poolAddresses = map[int]string{
 	1:     "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2", // Ethereum mainnet
 	8453:  "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5", // Base
 	42161: "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Arbitrum
+	137:   "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Polygon
+	10:    "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Optimism
 }
 
-// healthFactorScale is the fixed-point scale used by Aave (1e18).
+// healthFactorScale is the fixed-point scale for the healthFactor field (1e18 / ray).
 var healthFactorScale = new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
+
+// baseCurrencyScale is the scale for USD amounts returned by getUserAccountData (1e8).
+var baseCurrencyScale = new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(8), nil))
 
 // poolABI is the minimal Aave V3 Pool ABI for getUserAccountData.
 const poolABI = `[{"inputs":[{"internalType":"address","name":"user","type":"address"}],"name":"getUserAccountData","outputs":[{"internalType":"uint256","name":"totalCollateralBase","type":"uint256"},{"internalType":"uint256","name":"totalDebtBase","type":"uint256"},{"internalType":"uint256","name":"availableBorrowsBase","type":"uint256"},{"internalType":"uint256","name":"currentLiquidationThreshold","type":"uint256"},{"internalType":"uint256","name":"ltv","type":"uint256"},{"internalType":"uint256","name":"healthFactor","type":"uint256"}],"stateMutability":"view","type":"function"}]`
@@ -104,6 +109,8 @@ func (c *Client) fetchChain(ctx context.Context, parsedABI abi.ABI, walletID, ad
 	}
 
 	totalCollateralBase := unpacked[0].(*big.Int)
+	liqThresholdRaw := unpacked[3].(*big.Int) // basis points (10000 = 100%)
+	ltvRaw := unpacked[4].(*big.Int)           // basis points
 	healthFactorRaw := unpacked[5].(*big.Int)
 
 	healthFactor, _ := new(big.Float).Quo(
@@ -113,20 +120,32 @@ func (c *Client) fetchChain(ctx context.Context, parsedABI abi.ABI, walletID, ad
 
 	collateralUSD, _ := new(big.Float).Quo(
 		new(big.Float).SetInt(totalCollateralBase),
-		healthFactorScale,
+		baseCurrencyScale,
 	).Float64()
 
 	debtUSD, _ := new(big.Float).Quo(
 		new(big.Float).SetInt(totalDebtBase),
-		healthFactorScale,
+		baseCurrencyScale,
+	).Float64()
+
+	liqThreshold, _ := new(big.Float).Quo(
+		new(big.Float).SetInt(liqThresholdRaw),
+		big.NewFloat(10000),
+	).Float64()
+
+	ltv, _ := new(big.Float).Quo(
+		new(big.Float).SetInt(ltvRaw),
+		big.NewFloat(10000),
 	).Float64()
 
 	return &protocols.Position{
-		WalletID:      walletID,
-		Protocol:      "aave_v3",
-		ChainID:       chainID,
-		HealthFactor:  healthFactor,
-		CollateralUSD: collateralUSD,
-		DebtUSD:       debtUSD,
+		WalletID:             walletID,
+		Protocol:             "aave_v3",
+		ChainID:              chainID,
+		HealthFactor:         healthFactor,
+		CollateralUSD:        collateralUSD,
+		DebtUSD:              debtUSD,
+		LTV:                  ltv,
+		LiquidationThreshold: liqThreshold,
 	}, nil
 }

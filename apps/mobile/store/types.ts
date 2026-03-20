@@ -14,6 +14,8 @@ export interface Position {
   healthFactor: number;
   collateralUsd: number;
   debtUsd: number;
+  ltv: number;
+  liquidationThreshold: number;
 }
 
 export interface AlertEvent {

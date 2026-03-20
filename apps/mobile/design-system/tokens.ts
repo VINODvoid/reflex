@@ -4,24 +4,24 @@ import { Platform, useColorScheme } from "react-native";
 
 // Champagne Gold — warm, premium, precise. Inspired by luxury instruments & trading terminals.
 const light = {
-  bgPrimary: "#FFFEF9",       // warm white — not cold
-  bgSecondary: "#F5F2EA",     // warm parchment
-  surface: "#FFFFFF",
-  surfaceElevated: "#FFFFFF",
-  border: "#DDD8CC",          // warm border
-  borderSubtle: "#EDE9E0",
-  textPrimary: "#1A1814",     // warm near-black
-  textSecondary: "#6B6357",   // warm gray
-  textTertiary: "#A89F90",    // muted warm
-  accent: "#A07218",          // deep amber-gold — readable at 5.5:1 on warm white
-  accentSoft: "#FAF4E2",      // warm gold tint
-  accentPress: "#7A5510",
+  bgPrimary: "#E8DFC9",       // rich warm champagne — white surfaces float above this
+  bgSecondary: "#DDD4BC",     // deeper warm layer for inset sections
+  surface: "#FDFCF8",         // warm near-white — pops off bgPrimary
+  surfaceElevated: "#FFFFFF", // pure white for highest elevation
+  border: "#C6BC9F",          // warm tan border — visible contrast
+  borderSubtle: "#D4CBB5",    // subtle warm separator
+  textPrimary: "#14120D",     // deep warm near-black
+  textSecondary: "#504A3C",   // warm mid-tone
+  textTertiary: "#8A7E6A",    // muted warm
+  accent: "#7A5010",          // deep amber gold — WCAG AA on champagne bg
+  accentSoft: "#F5E4B8",      // warm golden highlight — distinct from bgPrimary
+  accentPress: "#5E3D0A",
   success: "#1A7F47",
-  successSoft: "#E8F5EE",
-  warning: "#C0620A",
-  warningSoft: "#FFF3E0",
-  danger: "#C0392B",
-  dangerSoft: "#FDEDEC",
+  successSoft: "#D4EEE1",
+  warning: "#B85A09",
+  warningSoft: "#FDEBD8",
+  danger: "#B83426",
+  dangerSoft: "#FDDBD7",
 };
 
 const dark = {
@@ -46,6 +46,24 @@ const dark = {
 };
 
 export type ColorTokens = typeof light;
+
+// ─── Gradients ─────────────────────────────────────────────────────────────────
+// For use with expo-linear-gradient. Top → bottom.
+
+export const Gradients = {
+  light: {
+    // Starts richer at the top, fades to warm cream — classic luxury depth
+    page: ["#DDD3BB", "#E8DFC9", "#F2EBD9"] as string[],
+    // Hero / accent tint sections
+    hero: ["#EDD9A8", "#F5EDD4"] as string[],
+  },
+  dark: {
+    // Barely perceptible warm lift — preserves OLED feel with subtle depth
+    page: ["#0B0A08", "#0E0C09", "#131009"] as string[],
+    // Subtle gold glow for hero sections
+    hero: ["rgba(212,168,67,0.10)", "rgba(212,168,67,0.02)"] as string[],
+  },
+};
 
 export function getColors(scheme: "light" | "dark"): ColorTokens {
   return scheme === "dark" ? dark : light;

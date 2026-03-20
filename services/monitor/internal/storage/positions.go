@@ -22,20 +22,24 @@ func UpsertPositions(ctx context.Context, db *pgxpool.Pool, positions []protocol
 	batch := &pgx.Batch{}
 	for _, p := range positions {
 		batch.Queue(
-			`INSERT INTO positions (wallet_id, protocol, chain_id, health_factor, collateral_usd, debt_usd)
-			 VALUES ($1, $2, $3, $4, $5, $6)
+			`INSERT INTO positions (wallet_id, protocol, chain_id, health_factor, collateral_usd, debt_usd, ltv, liquidation_threshold)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 ON CONFLICT (wallet_id, protocol, chain_id)
 			 DO UPDATE SET
-			   health_factor  = EXCLUDED.health_factor,
-			   collateral_usd = EXCLUDED.collateral_usd,
-			   debt_usd       = EXCLUDED.debt_usd,
-			   fetched_at     = NOW()`,
+			   health_factor          = EXCLUDED.health_factor,
+			   collateral_usd         = EXCLUDED.collateral_usd,
+			   debt_usd               = EXCLUDED.debt_usd,
+			   ltv                    = EXCLUDED.ltv,
+			   liquidation_threshold  = EXCLUDED.liquidation_threshold,
+			   fetched_at             = NOW()`,
 			p.WalletID,
 			p.Protocol,
 			p.ChainID,
 			p.HealthFactor,
 			p.CollateralUSD,
 			p.DebtUSD,
+			p.LTV,
+			p.LiquidationThreshold,
 		)
 	}
 

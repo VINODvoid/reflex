@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { AlertRule, Position, Wallet } from "./types";
+import { DEMO_WALLETS, DEMO_POSITIONS, DEMO_ALERTS } from "./demoData";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type RefreshInterval = 5 | 15 | 30 | 60;
@@ -36,6 +37,10 @@ interface StoreState {
   setNotifSound: (v: boolean) => void;
   setNotifQuietHours: (v: boolean) => void;
   setRefreshInterval: (v: RefreshInterval) => void;
+
+  isDemo: boolean;
+  enterDemo: () => void;
+  exitDemo: () => void;
 }
 
 export const useStore = create<StoreState>((set) => ({
@@ -72,4 +77,18 @@ export const useStore = create<StoreState>((set) => ({
   setNotifSound: (notifSound) => set({ notifSound }),
   setNotifQuietHours: (notifQuietHours) => set({ notifQuietHours }),
   setRefreshInterval: (refreshInterval) => set({ refreshInterval }),
+
+  isDemo: false,
+  enterDemo: () => set({
+    isDemo: true,
+    wallets: DEMO_WALLETS,
+    positions: DEMO_POSITIONS,
+    alerts: DEMO_ALERTS,
+  }),
+  exitDemo: () => set({
+    isDemo: false,
+    wallets: [],
+    positions: [],
+    alerts: [],
+  }),
 }));

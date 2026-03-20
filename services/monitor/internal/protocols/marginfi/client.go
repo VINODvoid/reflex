@@ -81,26 +81,20 @@ type marginfiAccount struct {
 }
 
 // bankData holds the minimal fields decoded from a MarginFi Bank account.
-// Bank struct Borsh layout (after 8-byte discriminator):
+// Bank struct layout (zero_copy / repr(C), after 8-byte Anchor discriminator):
 //
-//	mint (32) + mint_decimals (1) + group (32) + __padding_0 (7) +
-//	asset_share_value (16) + liability_share_value (16) + ...
+//	mint (32) | mint_decimals (1) | group (32) | _padding_0 (7) |
+//	asset_share_value (16) | liability_share_value (16) | ...
 //
-// IMPORTANT: Verify these offsets against the MarginFi V2 IDL at
-// https://github.com/mrgnlabs/marginfi-v2 before relying on this in production.
+// Verified against marginfi-v2 source (mrgnlabs/marginfi-v2):
+//   - authorityOffset = 40: discriminator(8) + group(32) ✓
+//   - asset_share_value at relative offset 72 (absolute 80): mint(32)+mint_decimals(1)+group(32)+_padding_0(7) ✓
+//   - DataSize 2304 matches on-chain MarginfiAccount size ✓
 type bankData struct {
 	Mint                solana.PublicKey
 	AssetShareValue     i80f48
 	LiabilityShareValue i80f48
 }
-
-// bankOffsets defines byte offsets within a Bank account data slice (after discriminator).
-const (
-	bankMintOffset                = 0  // 32 bytes
-	bankAssetShareValueOffset     = 73 // 32 (group) + 1 (mint_decimals) + 32 (group) + 7 (padding) ... wait
-	// Layout: mint(32) + mint_decimals(1) + group(32) + __padding_0(7) = offset 72
-	// asset_share_value at offset 72, liability_share_value at offset 88
-)
 
 // Client fetches MarginFi V2 positions on Solana mainnet.
 type Client struct {
@@ -292,9 +286,8 @@ func (c *Client) fetchBanks(ctx context.Context, client *rpc.Client, pubkeys []s
 
 		data := acc.Data.GetBinary()
 		// Bank data layout after 8-byte discriminator:
-		// mint (32) | mint_decimals (1) | group (32) | __padding_0 (7) |
+		// mint (32) | mint_decimals (1) | group (32) | _padding_0 (7) |
 		// asset_share_value (16) | liability_share_value (16) | ...
-		// VERIFY AGAINST IDL: https://github.com/mrgnlabs/marginfi-v2
 		const minLen = 8 + 32 + 1 + 32 + 7 + 16 + 16
 		if len(data) < minLen {
 			continue
